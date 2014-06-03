@@ -2,8 +2,10 @@
 #include <boost/iostreams/device/mapped_file.hpp>
 #include <bustache/value.hpp>
 
-int main(int argc, char** argv) {
+int main(int argc, char** argv)
+{
     namespace bu = bustache;
+    
     bu::object obj
     {
         {"header", std::string("Colors")}
@@ -39,5 +41,5 @@ int main(int argc, char** argv) {
         std::cout << "-----------------------\n";
     }
 
-	return 0;
+    return 0;
 }
