@@ -37,7 +37,7 @@ int main(int argc, char** argv)
         boost::iostreams::mapped_file_source file(fname);
         bu::format fmt(file.begin(), file.end());
         std::cout << "-----------------------\n";
-        std::cout << fmt(obj);
+        std::cout << fmt(obj) << std::endl;
         std::cout << "-----------------------\n";
     }
 

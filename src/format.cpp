@@ -12,21 +12,22 @@ namespace x3 = boost::spirit::x3;
 namespace bustache { namespace parser
 {
     using x3::lit;
+    using x3::space;
+    using x3::char_;
+    using x3::string;
     using x3::alpha;
     using x3::alnum;
-    using x3::char_;
-    using x3::eoi;
-    using x3::string;
     
     using x3::seek;
+    using x3::skip;
     using x3::raw;
 
     x3::rule<class start, ast::content_list> const start;
     x3::rule<class text, boost::string_ref, x3::filter<>> const text;
+    x3::rule<class id, std::string, x3::filter<>> const id;
     x3::rule<class term, std::string> const term;
     x3::rule<class block, ast::block> const block;
     x3::rule<class content, ast::content> const content;
-    x3::rule<class id, std::string, x3::filter<>> const id;
     x3::rule<class end_block> const end_block;
     
     x3::as<boost::string_ref> const as_text;
@@ -46,7 +47,10 @@ namespace bustache { namespace parser
             *(content | as_text[string])
             
       , text =
-            raw[seek[char_ >> &lit("{{")]]
+            raw[seek[char_ >> &skip(space)["{{"]]]
+            
+      , id =
+            raw[seek[char_ >> &skip(space)["}}"]]]
 
       , term =
             id >> "}}"
@@ -57,12 +61,9 @@ namespace bustache { namespace parser
             >>  end_block >> lit(get_id()) >> "}}"
 
       , content =
-                "{{" >> (term | block)
+                "{{" >> (block | term)
             |   text
-            
-      , id =
-            raw[(alpha | '_') >> *(alnum | '_')]
-            
+
       , end_block =
             lit("{{") >> '/'
     )
