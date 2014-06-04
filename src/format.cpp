@@ -17,10 +17,14 @@ namespace bustache { namespace parser
     using x3::string;
     using x3::alpha;
     using x3::alnum;
+    using x3::eps;
+    using x3::attr;
     
     using x3::seek;
+    using x3::sink;
     using x3::skip;
     using x3::raw;
+    using x3::locals;
 
     x3::rule<class start, ast::content_list> const start;
     x3::rule<class text, boost::string_ref, x3::filter<>> const text;
@@ -28,7 +32,7 @@ namespace bustache { namespace parser
     x3::rule<class term, std::string> const term;
     x3::rule<class block, ast::block> const block;
     x3::rule<class content, ast::content> const content;
-    x3::rule<class end_block> const end_block;
+    x3::rule<class end_block, bool(std::string const&)> const end_block;
     
     x3::as<boost::string_ref> const as_text;
     
@@ -40,6 +44,9 @@ namespace bustache { namespace parser
             return x3::_val(ctx).id;
         }
     };
+
+    x3::param_eval<0> const _r1;
+    x3::var_eval<0> const _a;
 
     BOOST_SPIRIT_DEFINE
     (
@@ -57,15 +64,19 @@ namespace bustache { namespace parser
             
       , block =
                 '#' >> id >> "}}"
-            >>  *(content - end_block)
-            >>  end_block >> lit(get_id()) >> "}}"
+            >>  locals<bool>()
+                [
+                    *((sink(_a)[end_block(get_id())] | content) - eps(_a))
+                >>  eps(_a)
+                ]
 
       , content =
                 "{{" >> (block | term)
             |   text
 
       , end_block =
-            lit("{{") >> '/'
+                lit("{{") >> '/' >> lit(_r1) >> "}}"
+            >>  attr(true)
     )
 }}
 
