@@ -32,11 +32,13 @@ namespace bustache
     struct array : std::vector<value>
     {
         using vector::vector;
+        using vector::operator=;
     };
     
     struct object : std::unordered_map<std::string, value>
     {
         using unordered_map::unordered_map;
+        using unordered_map::operator=;
     };
     
     struct unused_type
@@ -156,7 +158,10 @@ namespace bustache
                         return !data.empty() ^ inverted;
                     }
                     
-                    bool operator()(boost::blank) const { return false; }
+                    bool operator()(boost::blank) const
+                    {
+                        return inverted;
+                    }
                 } extractor{obj, section, inverted, out};
                 if (!boost::apply_visitor(extractor, it->second))
                     return;
