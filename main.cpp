@@ -4,40 +4,44 @@
 
 int main(int argc, char** argv)
 {
-    namespace bu = bustache;
+    using bustache::object;
+    using bustache::array;
     
-    bu::object obj
+    object data
     {
         {"header", std::string("Colors")}
-      , {"items", bu::array{
-            bu::object
+      , {"items",
+            array
             {
-                {"name", std::string("red")}
-              , {"first", true}
-              , {"url", std::string("#Red")}
+                object
+                {
+                    {"name", std::string("red")}
+                  , {"first", true}
+                  , {"url", std::string("#Red")}
+                }
+              , object
+                {
+                    {"name", std::string("green")}
+                  , {"link", true}
+                  , {"url", std::string("#Green")}
+                }
+              , object
+                {
+                    {"name", std::string("blue")}
+                  , {"link", true}
+                  , {"url", std::string("#Blue")}
+                }
             }
-          , bu::object
-            {
-                {"name", std::string("green")}
-              , {"link", true}
-              , {"url", std::string("#Green")}
-            }
-          , bu::object
-            {
-                {"name", std::string("blue")}
-              , {"link", true}
-              , {"url", std::string("#Blue")}
-            }
-        }}
+        }
       , {"empty", false}
     };
     std::string fname;
     while (std::getline(std::cin, fname))
     {
         boost::iostreams::mapped_file_source file(fname);
-        bu::format fmt(file.begin(), file.end());
+        bustache::format format(file.begin(), file.end());
         std::cout << "-----------------------\n";
-        std::cout << fmt(obj) << std::endl;
+        std::cout << format(data) << std::endl;
         std::cout << "-----------------------\n";
     }
 
