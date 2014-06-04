@@ -106,55 +106,66 @@ namespace bustache
             out << text;
         }
         
-        void operator()(ast::id const& id) const
+        void operator()(ast::variable const& variable) const
         {
-            auto it = obj.find(id);
+            auto it = obj.find(variable);
             if (it != obj.end())
                 boost::apply_visitor(value_printer<OStream>{out}, it->second);
         }
         
-        void operator()(ast::block const& block) const
+        void operator()(ast::section const& section) const
         {
-            auto it = obj.find(block.id);
+            auto it = obj.find(section.variable);
+            bool inverted = section.tag == '^';
             if (it != obj.end())
             {
                 struct value_extractor
                 {
-                    typedef void result_type;
+                    typedef bool result_type;
                     
                     object const& parent;
-                    ast::block const& block;
+                    ast::section const& section;
+                    bool inverted;
                     OStream& out;
-
-                    void operator()(object const& data) const
+    
+                    bool operator()(object const& data) const
                     {
-                        content_visitor visitor{data, out};
-                        for (auto const& content : block.contents)
-                            boost::apply_visitor(visitor, content);
+                        if (!inverted)
+                        {
+                            content_visitor visitor{data, out};
+                            for (auto const& content : section.contents)
+                                boost::apply_visitor(visitor, content);
+                        }
+                        return false;
                     }
                     
-                    void operator()(array const& data) const
+                    bool operator()(array const& data) const
                     {
                         for (auto const& val : data)
                             boost::apply_visitor(*this, val);
+                        return data.empty() && inverted;
                     }
-
-                    void operator()(bool data) const
+    
+                    bool operator()(bool data) const
                     {
-                        if (data)
-                            operator()(parent);
+                        return data ^ inverted;
                     }
-
-                    void operator()(std::string const& data) const
+    
+                    bool operator()(std::string const& data) const
                     {
-                        if (!data.empty())
-                            operator()(parent);
+                        return !data.empty() ^ inverted;
                     }
                     
-                    void operator()(boost::blank) const {}
-                };
-                boost::apply_visitor(value_extractor{obj, block, out}, it->second);
+                    bool operator()(boost::blank) const { return false; }
+                } extractor{obj, section, inverted, out};
+                if (!boost::apply_visitor(extractor, it->second))
+                    return;
             }
+            else if (!inverted)
+                return;
+                
+            for (auto const& content : section.contents)
+                boost::apply_visitor(*this, content);
         }
     };
 

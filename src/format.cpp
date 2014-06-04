@@ -24,9 +24,9 @@ namespace bustache { namespace parser
 
     x3::rule<class start, ast::content_list> const start;
     x3::rule<class text, boost::string_ref> const text;
-    x3::rule<class id, std::string> const id;
+    x3::rule<class variable, std::string> const variable;
     x3::rule<class term, std::string> const term;
-    x3::rule<class block, ast::block> const block;
+    x3::rule<class section, ast::section> const section;
     x3::rule<class content, ast::content> const content;
     
     x3::as<boost::string_ref> const as_text;
@@ -36,7 +36,7 @@ namespace bustache { namespace parser
         template <typename Context>
         std::string const& operator()(Context const& ctx) const
         {
-            return x3::_val(ctx).id;
+            return x3::_val(ctx).variable;
         }
     };
 
@@ -48,21 +48,21 @@ namespace bustache { namespace parser
       , text =
             lexeme[raw[seek[char_ >> &skip["{{"]]]]
             
-      , id =
+      , variable =
             lexeme[raw[seek[char_ >> &skip["}}"]]]]
 
       , term =
-            id >> "}}"
+            variable >> "}}"
             
-      , block =
-                '#' >> id >> "}}"
+      , section =
+                char_("#^") >> variable >> "}}"
             >>  until(lit("{{") >> '/' >> lit(get_id()) >> "}}")
                 [
                     content
                 ]
 
       , content =
-                "{{" >> (block | term)
+                "{{" >> (section | term)
             |   text
     )
 }}
