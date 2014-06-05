@@ -39,7 +39,7 @@ int main(int argc, char** argv)
 
     std::unordered_map<std::string, bustache::format> context
     {
-        {"url", "\"{{url}}\""}
+        {"href", "href=\"{{url}}\""}
     };
         
     std::string fname;

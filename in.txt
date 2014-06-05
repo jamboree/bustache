@@ -7,7 +7,7 @@
     <li><strong>{{name}}</strong></li>
   {{/first}}
   {{#link}}
-    <li><a href={{>url}}>{{name}}</a></li>
+    <li><a {{>href}}>{{name}}</a></li>
   {{/link}}
 {{ /items}}
 

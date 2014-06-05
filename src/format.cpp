@@ -18,6 +18,7 @@ namespace bustache { namespace parser
     
     using x3::seek;
     using x3::lexeme;
+    using x3::no_skip;
     using x3::skip;
     using x3::raw;
     using x3::until;
@@ -47,7 +48,7 @@ namespace bustache { namespace parser
             *(content | as_text[string])
             
       , text =
-            lexeme[raw[seek[char_ >> &skip["{{"]]]]
+            no_skip[raw[seek[char_ >> &lit("{{")]]]
             
       , id =
             lexeme[raw[seek[char_ >> &skip["}}"]]]]
