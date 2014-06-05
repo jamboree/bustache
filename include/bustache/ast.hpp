@@ -10,7 +10,7 @@
 #include <boost/variant.hpp>
 #include <boost/fusion/include/define_struct_inline.hpp>
 #include <boost/utility/string_ref.hpp>
-#include <vector>
+#include <deque>
 #include <string>
 
 namespace bustache { namespace ast
@@ -28,8 +28,8 @@ namespace bustache { namespace ast
     };
     
     using content = boost::variant<text, variable, section, partial>;
-        
-    using content_list = std::vector<content>;
+
+    using content_list = std::deque<content>;
 
     BOOST_FUSION_DEFINE_STRUCT_INLINE
     (

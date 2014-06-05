@@ -15,21 +15,18 @@ namespace bustache { namespace parser
     using x3::space;
     using x3::char_;
     using x3::string;
-    
-    using x3::seek;
+
     using x3::lexeme;
     using x3::no_skip;
     using x3::skip;
     using x3::raw;
-    using x3::until;
 
-    x3::rule<class start, ast::content_list> const start;
+    x3::rule<class content, ast::content> const content;
     x3::rule<class text, boost::string_ref> const text;
     x3::rule<class id, std::string> const id;
     x3::rule<class variable, ast::variable> const variable;
     x3::rule<class section, ast::section> const section;
     x3::rule<class partial, ast::partial> const partial;
-    x3::rule<class content, ast::content> const content;
     
     x3::as<boost::string_ref> const as_text;
     
@@ -44,31 +41,26 @@ namespace bustache { namespace parser
 
     BOOST_SPIRIT_DEFINE
     (
-        start =
-            *(content | as_text[string])
+        content =
+                "{{" >> (section | partial | variable)
+            |   text
             
       , text =
-            no_skip[raw[seek[char_ >> &lit("{{")]]]
+            no_skip[raw[+(char_ - "{{")]]
             
       , id =
-            lexeme[raw[seek[char_ >> &skip["}}"]]]]
+            lexeme[raw[+(char_ - skip["}}"])]]
 
       , variable =
-            id >> "}}"
+            !lit('/') >> id >> "}}"
             
       , section =
                 char_("#^") >> id >> "}}"
-            >>  until(lit("{{") >> '/' >> lit(get_id()) >> "}}")
-                [
-                    content
-                ]
-        
+            >>  *content
+            >>  lit("{{") >> '/' >> lit(get_id()) >> "}}"
+
       , partial =
             '>' >> id >> "}}"
-
-      , content =
-                "{{" >> (section | partial | variable)
-            |   text
     )
 }}
 
@@ -76,7 +68,7 @@ namespace bustache
 {
     format::format(char const* begin, char const* end)
     {
-        x3::phrase_parse(begin, end, parser::start, x3::space, _contents);
+        x3::phrase_parse(begin, end, *parser::content, x3::space, _contents);
     }
     
     std::size_t format::text_size() const
