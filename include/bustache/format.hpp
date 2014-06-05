@@ -18,9 +18,16 @@ namespace bustache
         Object const& data;
         Context const& context;
     };
+    
+    enum option_type
+    {
+        trim_ws = 1
+    };
 
     struct format
     {
+        typedef bool flag_type;
+        
         struct no_context
         {
             typedef std::pair<std::string, format> value_type;
@@ -43,22 +50,22 @@ namespace bustache
             }
         };
         
-        format(char const* begin, char const* end);
+        format(char const* begin, char const* end, flag_type flag = 0);
         
         template <typename Source>
-        explicit format(Source const& source)
-          : format(source.data(), source.data() + source.size())
+        explicit format(Source const& source, flag_type flag = 0)
+          : format(source.data(), source.data() + source.size(), flag)
         {}
         
         template <typename Source>
-        explicit format(Source const&& source)
-          : format(source.data(), source.data() + source.size())
+        explicit format(Source const&& source, flag_type flag = 0)
+          : format(source.data(), source.data() + source.size(), flag)
         {
             copy_text(text_size());
         }
 
-        explicit format(std::string&& source)
-          : format(source.data(), source.data() + source.size())
+        explicit format(std::string&& source, flag_type flag = 0)
+          : format(source.data(), source.data() + source.size(), flag)
         {
             std::size_t sn = source.size(), tn;
             if (sn > 1024 && sn - (tn = text_size()) > 256)
@@ -68,8 +75,8 @@ namespace bustache
         }
 
         template <std::size_t N>
-        format(char const (&source)[N])
-          : format(source, source + (N - 1))
+        format(char const (&source)[N], flag_type flag = 0)
+          : format(source, source + (N - 1), flag)
         {}
         
         template <typename Object>
