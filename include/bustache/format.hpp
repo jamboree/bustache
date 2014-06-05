@@ -11,21 +11,52 @@
 
 namespace bustache
 {
+    template <typename Object, typename Context>
+    struct manipulator
+    {
+        ast::content_list const& contents;
+        Object const& data;
+        Context const& context;
+    };
+
     struct format
     {
-        template <typename Object>
-        struct manip
+        struct no_context
         {
-            ast::content_list const& contents;
-            Object const& data;
+            typedef std::pair<std::string, format> value_type;
+            typedef value_type const* iterator;
+            
+            constexpr iterator find(std::string const&) const
+            {
+                return nullptr;
+            }
+            
+            constexpr iterator end() const
+            {
+                return nullptr;
+            }
+    
+            static no_context const& dummy()
+            {
+                static no_context const _{};
+                return _;
+            }
         };
         
         format(char const* begin, char const* end);
 
         template <typename Object>
-        manip<Object> operator()(Object const& data) const
+        manipulator<Object, no_context>
+        operator()(Object const& data) const
         {
-            return {contents, data};
+            return {contents, data, no_context::dummy()};
+        }
+        
+        template <typename Object, typename Context>
+        manipulator<Object, Context>
+        operator()(Object const& data, Context const& context) const
+        {
+            return {contents, data, context};
         }
 
         ast::content_list contents;

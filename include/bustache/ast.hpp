@@ -16,20 +16,26 @@
 namespace bustache { namespace ast
 {
     struct section;
-    
+
     using text = boost::string_ref;
     
     using variable = std::string;
     
-    using content = boost::variant<text, variable, section>;
+    struct partial : variable
+    {
+        using variable::variable;
+        using variable::operator=;
+    };
+    
+    using content = boost::variant<text, variable, section, partial>;
         
     using content_list = std::vector<content>;
-        
+
     BOOST_FUSION_DEFINE_STRUCT_INLINE
     (
         section,
         (char, tag)
-        (std::string, variable)
+        (std::string, id)
         (content_list, contents)
     )
 }}

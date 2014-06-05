@@ -1,4 +1,5 @@
 #include <iostream>
+#include <unordered_map>
 #include <boost/iostreams/device/mapped_file.hpp>
 #include <bustache/value.hpp>
 
@@ -35,13 +36,21 @@ int main(int argc, char** argv)
         }
       , {"empty", false}
     };
+    
+    std::string url = "\"{{url}}\"";
+    
+    std::unordered_map<std::string, bustache::format> context
+    {
+        {"url", {url.data(), url.data() + url.size()}}
+    };
+        
     std::string fname;
     while (std::getline(std::cin, fname))
     {
         boost::iostreams::mapped_file_source file(fname);
         bustache::format format(file.begin(), file.end());
         std::cout << "-----------------------\n";
-        std::cout << format(data) << std::endl;
+        std::cout << format(data, context) << std::endl;
         std::cout << "-----------------------\n";
     }
 

@@ -95,12 +95,13 @@ namespace bustache
         }
     };
 
-    template <typename OStream>
+    template <typename OStream, typename Context>
     struct content_visitor
     {
         typedef void result_type;
         
         object const& obj;
+        Context const& context;
         OStream& out;
         
         void operator()(ast::text const& text) const
@@ -117,7 +118,7 @@ namespace bustache
         
         void operator()(ast::section const& section) const
         {
-            auto it = obj.find(section.variable);
+            auto it = obj.find(section.id);
             bool inverted = section.tag == '^';
             if (it != obj.end())
             {
@@ -126,6 +127,7 @@ namespace bustache
                     typedef bool result_type;
                     
                     object const& parent;
+                    Context const& context;
                     ast::section const& section;
                     bool inverted;
                     OStream& out;
@@ -134,7 +136,7 @@ namespace bustache
                     {
                         if (!inverted)
                         {
-                            content_visitor visitor{data, out};
+                            content_visitor visitor{data, context, out};
                             for (auto const& content : section.contents)
                                 boost::apply_visitor(visitor, content);
                         }
@@ -162,7 +164,7 @@ namespace bustache
                     {
                         return inverted;
                     }
-                } extractor{obj, section, inverted, out};
+                } extractor{obj, context, section, inverted, out};
                 if (!boost::apply_visitor(extractor, it->second))
                     return;
             }
@@ -172,16 +174,28 @@ namespace bustache
             for (auto const& content : section.contents)
                 boost::apply_visitor(*this, content);
         }
+        
+        void operator()(ast::partial const& partial) const
+        {
+            auto it = context.find(partial);
+            if (it != context.end())
+            {
+                content_visitor visitor{obj, context, out};
+                for (auto const& content : it->second.contents)
+                    boost::apply_visitor(visitor, content);
+            }
+        }
     };
 
-    template <typename CharT, typename Traits>
+    template <typename CharT, typename Traits, typename Context>
     std::basic_ostream<CharT, Traits>&
-    operator<<(std::basic_ostream<CharT, Traits>& out, format::manip<object> const& fmt)
+    operator<<(std::basic_ostream<CharT, Traits>& out, manipulator<object, Context> const& manip)
     {
         boost::io::ios_flags_saver iosate(out);
         out << std::boolalpha;
-        content_visitor<std::basic_ostream<CharT, Traits>> visitor{fmt.data, out};
-        for (auto const& content : fmt.contents)
+        content_visitor<std::basic_ostream<CharT, Traits>, Context>
+            visitor{manip.data, manip.context, out};
+        for (auto const& content : manip.contents)
             boost::apply_visitor(visitor, content);
         return out;
     }
