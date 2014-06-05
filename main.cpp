@@ -46,7 +46,7 @@ int main(int argc, char** argv)
     while (std::getline(std::cin, fname))
     {
         boost::iostreams::mapped_file_source file(fname);
-        bustache::format format(file, bustache::trim_ws);
+        bustache::format format(file);
         std::cout << "-----------------------\n";
         std::cout << format(data, context) << std::endl;
         std::cout << "-----------------------\n";
