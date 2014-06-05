@@ -100,7 +100,7 @@ namespace bustache
     {
         typedef void result_type;
         
-        object const& obj;
+        object const& data;
         Context const& context;
         OStream& out;
         
@@ -111,16 +111,16 @@ namespace bustache
         
         void operator()(ast::variable const& variable) const
         {
-            auto it = obj.find(variable);
-            if (it != obj.end())
+            auto it = data.find(variable);
+            if (it != data.end())
                 boost::apply_visitor(value_printer<OStream>{out}, it->second);
         }
         
         void operator()(ast::section const& section) const
         {
-            auto it = obj.find(section.id);
+            auto it = data.find(section.id);
             bool inverted = section.tag == '^';
-            if (it != obj.end())
+            if (it != data.end())
             {
                 struct value_extractor
                 {
@@ -164,7 +164,7 @@ namespace bustache
                     {
                         return inverted;
                     }
-                } extractor{obj, context, section, inverted, out};
+                } extractor{data, context, section, inverted, out};
                 if (!boost::apply_visitor(extractor, it->second))
                     return;
             }
@@ -180,7 +180,7 @@ namespace bustache
             auto it = context.find(partial);
             if (it != context.end())
             {
-                content_visitor visitor{obj, context, out};
+                content_visitor visitor{data, context, out};
                 for (auto const& content : it->second.contents())
                     boost::apply_visitor(visitor, content);
             }
