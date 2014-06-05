@@ -1,7 +1,7 @@
 #include <iostream>
 #include <unordered_map>
 #include <boost/iostreams/device/mapped_file.hpp>
-#include <bustache/value.hpp>
+#include <bustache/model.hpp>
 
 int main(int argc, char** argv)
 {
