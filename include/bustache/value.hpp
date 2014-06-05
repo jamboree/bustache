@@ -21,7 +21,7 @@ namespace bustache
     using value =
         boost::variant
         <
-            boost::blank
+            std::nullptr_t
           , bool
           , double
           , std::string
@@ -40,13 +40,7 @@ namespace bustache
         using unordered_map::unordered_map;
         using unordered_map::operator=;
     };
-    
-    struct unused_type
-    {
-        template <typename T>
-        unused_type(T const&) {}
-    };
-    
+
     template <typename OStream>
     struct value_printer
     {
@@ -54,7 +48,7 @@ namespace bustache
         
         OStream& out;
 
-        void operator()(boost::blank) const
+        void operator()(std::nullptr_t) const
         {}
         
         template <typename T>
@@ -160,7 +154,7 @@ namespace bustache
                         return !data.empty() ^ inverted;
                     }
                     
-                    bool operator()(boost::blank) const
+                    bool operator()(std::nullptr_t) const
                     {
                         return inverted;
                     }
