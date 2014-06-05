@@ -111,7 +111,7 @@ namespace bustache
         
         void operator()(ast::variable const& variable) const
         {
-            auto it = data.find(variable);
+            auto it = data.find(variable.id);
             if (it != data.end())
                 boost::apply_visitor(value_printer<OStream>{out}, it->second);
         }
@@ -185,6 +185,8 @@ namespace bustache
                     boost::apply_visitor(visitor, content);
             }
         }
+        
+        void operator()(ast::comment) const {} // never called
     };
 
     template <typename CharT, typename Traits, typename Context>
