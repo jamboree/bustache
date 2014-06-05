@@ -44,22 +44,60 @@ namespace bustache
         };
         
         format(char const* begin, char const* end);
+        
+        template <typename Source>
+        explicit format(Source const& source)
+          : format(source.data(), source.data() + source.size())
+        {}
+        
+        template <typename Source>
+        explicit format(Source const&& source)
+          : format(source.data(), source.data() + source.size())
+        {
+            copy_text(text_size());
+        }
 
+        explicit format(std::string&& source)
+          : format(source.data(), source.data() + source.size())
+        {
+            std::size_t sn = source.size(), tn;
+            if (sn > 1024 && sn - (tn = text_size()) > 256)
+                copy_text(tn);
+            else
+                _text.swap(source);
+        }
+
+        template <std::size_t N>
+        format(char const (&source)[N])
+          : format(source, source + (N - 1))
+        {}
+        
         template <typename Object>
         manipulator<Object, no_context>
         operator()(Object const& data) const
         {
-            return {contents, data, no_context::dummy()};
+            return {_contents, data, no_context::dummy()};
         }
         
         template <typename Object, typename Context>
         manipulator<Object, Context>
         operator()(Object const& data, Context const& context) const
         {
-            return {contents, data, context};
+            return {_contents, data, context};
         }
+        
+        ast::content_list const& contents() const
+        {
+            return _contents;
+        }
+        
+    private:
+        
+        std::size_t text_size() const;
+        void copy_text(std::size_t n);
 
-        ast::content_list contents;
+        ast::content_list _contents;
+        std::string _text;
     };
 }
 

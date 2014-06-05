@@ -181,7 +181,7 @@ namespace bustache
             if (it != context.end())
             {
                 content_visitor visitor{obj, context, out};
-                for (auto const& content : it->second.contents)
+                for (auto const& content : it->second.contents())
                     boost::apply_visitor(visitor, content);
             }
         }

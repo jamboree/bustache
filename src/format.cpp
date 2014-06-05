@@ -75,6 +75,64 @@ namespace bustache
 {
     format::format(char const* begin, char const* end)
     {
-        x3::phrase_parse(begin, end, parser::start, x3::space, contents);
+        x3::phrase_parse(begin, end, parser::start, x3::space, _contents);
+    }
+    
+    std::size_t format::text_size() const
+    {
+        struct accum_size
+        {
+            typedef std::size_t result_type;
+
+            std::size_t operator()(ast::text const& text) const
+            {
+                return text.size();
+            }
+
+            std::size_t operator()(ast::section const& section) const
+            {
+                std::size_t n = 0;
+                for (auto const& content : section.contents)
+                    n += boost::apply_visitor(*this, content);
+                return n;
+            }
+            
+            std::size_t operator()(std::string const&) const
+            {
+                return 0;
+            }
+        } accum;
+        std::size_t n = 0;
+        for (auto const& content : _contents)
+            n += boost::apply_visitor(accum, content);
+        return n;
+    }
+    
+    void format::copy_text(std::size_t n)
+    {
+        _text.reserve(n);
+        struct insert_text
+        {
+            typedef void result_type;
+            
+            std::string& data;
+
+            void operator()(ast::text& text) const
+            {
+                auto n = data.size();
+                data.insert(data.end(), text.begin(), text.end());
+                text = {data.data() + n, text.size()};
+            }
+
+            void operator()(ast::section& section) const
+            {
+                for (auto& content : section.contents)
+                    boost::apply_visitor(*this, content);
+            }
+            
+            void operator()(std::string const&) const {}
+        } insert{_text};
+        for (auto& content : _contents)
+            boost::apply_visitor(insert, content);
     }
 }

@@ -36,19 +36,17 @@ int main(int argc, char** argv)
         }
       , {"empty", false}
     };
-    
-    std::string url = "\"{{url}}\"";
-    
+
     std::unordered_map<std::string, bustache::format> context
     {
-        {"url", {url.data(), url.data() + url.size()}}
+        {"url", "\"{{url}}\""}
     };
         
     std::string fname;
     while (std::getline(std::cin, fname))
     {
         boost::iostreams::mapped_file_source file(fname);
-        bustache::format format(file.begin(), file.end());
+        bustache::format format(file);
         std::cout << "-----------------------\n";
         std::cout << format(data, context) << std::endl;
         std::cout << "-----------------------\n";
