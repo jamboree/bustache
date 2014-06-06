@@ -11,11 +11,11 @@
 
 namespace bustache
 {
-    typedef unsigned option_type;
+    typedef bool option_type;
     enum option : option_type
     {
         normal
-      , escape_html = 1
+      , escape_html = true
     };
     
     template <typename Object, typename Context>

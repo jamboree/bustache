@@ -133,7 +133,7 @@ namespace bustache
             auto it = data.find(variable.id);
             if (it != data.end())
             {
-                value_printer<OStream> printer{out, bool(escaping & !variable.tag)};
+                value_printer<OStream> printer{out, escaping && !variable.tag};
                 boost::apply_visitor(printer, it->second);
             }
             else if (parent)
@@ -222,8 +222,7 @@ namespace bustache
         out << std::boolalpha;
         content_visitor<std::basic_ostream<CharT, Traits>, Context> visitor
         {
-            nullptr, manip.data, out
-          , manip.context, bool(manip.flag & escape_html)
+            nullptr, manip.data, out, manip.context, manip.flag
         };
         for (auto const& content : manip.contents)
             boost::apply_visitor(visitor, content);
