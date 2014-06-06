@@ -48,44 +48,31 @@ namespace bustache
         
         OStream& out;
 
-        void operator()(std::nullptr_t) const
-        {}
+        void operator()(std::nullptr_t) const {}
         
         template <typename T>
-        void operator()(T const& val) const
+        void operator()(T const& data) const
         {
-            out << val;
+            out << data;
         }
 
         void operator()(array const& data) const
         {
-            multi(data, '[', ']', boost::apply_visitor(*this));
-        }
-
-        void operator()(object const& data) const
-        {
-            multi(data, '{', '}', [this](object::value_type const& pair)
-            {
-                out << pair.first << ':';
-                boost::apply_visitor(*this, pair.second);
-            });
-        }
-        
-        template <typename T, typename F>
-        void multi(T const& data, char left, char right, F const& f) const
-        {
-            out << left;
             auto it = data.begin(), end = data.end();
             if (it != end)
             {
-                f(*it);
+                boost::apply_visitor(*this, *it);
                 while (++it != end)
                 {
                     out << ',';
-                    f(*it);
+                    boost::apply_visitor(*this, *it);
                 }
             }
-            out << right;
+        }
+
+        void operator()(object const&) const
+        {
+            out << "[Object]";
         }
     };
 

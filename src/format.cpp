@@ -6,6 +6,7 @@
 //////////////////////////////////////////////////////////////////////////////*/
 #include <bustache/format.hpp>
 #include <boost/spirit/home/x3.hpp>
+#include <boost/fusion/adapted/std_tuple.hpp>
 
 namespace x3 = boost::spirit::x3;
 
@@ -20,17 +21,60 @@ namespace bustache { namespace parser
     using x3::no_skip;
     using x3::skip;
     using x3::seek;
+    using x3::sink;
+    using x3::hold;
+    using x3::with;
     using x3::raw;
+    
+    struct delim
+    {
+        typedef std::tuple<std::string, std::string> type;
+        
+        template <int N>
+        struct get
+        {
+            template <typename Context>
+            std::string const& operator()(Context const& ctx) const
+            {
+                return std::get<N>(x3::get<delim>(ctx));
+            }
+        };
+        
+        struct trans
+        {
+            static type pre(type const&)
+            {
+                return {};
+            }
+            
+            static void post(type& copy, type& attr)
+            {
+                attr = std::move(copy);
+            }
+        };
+        
+        template <typename Context>
+        type& operator()(Context const& ctx) const
+        {
+            return x3::get<delim>(ctx);
+        }
+    };
+    
+    typedef x3::filter<x3::skipper_tag, delim> filter;
 
-    x3::rule<class content, ast::content> const content;
-    x3::rule<class text, boost::string_ref> const text;
-    x3::rule<class id, std::string(char const*)> const id;
-    x3::rule<class variable, ast::variable> const variable;
-    x3::rule<class section, ast::section> const section;
-    x3::rule<class partial, ast::partial> const partial;
-    x3::rule<class comment, ast::comment> const comment;
+    x3::rule<class start, ast::content_list> const start;
+    x3::rule<class content, ast::content, filter> const content;
+    x3::rule<class text, boost::string_ref, filter> const text;
+    x3::rule<class id, std::string(char const*), filter> const id;
+    x3::rule<class variable, ast::variable, filter> const variable;
+    x3::rule<class section, ast::section, filter> const section;
+    x3::rule<class partial, ast::partial, filter> const partial;
+    x3::rule<class comment, ast::comment, filter> const comment;
+    x3::rule<class set_delim, void, filter> const set_delim;
     
     x3::as<boost::string_ref> const as_text;
+    auto const dL = lit(delim::get<0>());
+    auto const dR = lit(delim::get<1>());
     
     struct get_id
     {
@@ -49,35 +93,47 @@ namespace bustache { namespace parser
             return x3::_val(ctx).tag == '{'? "}" : "";
         }
     };
-    
+
     x3::param_eval<0> const _r1;
 
     BOOST_SPIRIT_DEFINE
     (
-        content =
-                "{{" >> (section | partial | comment | variable)
+        start =
+            with<delim&>(delim::type{"{{", "}}"})
+            [
+                *content
+            ]
+            
+      , content =
+                dL >> (section | partial | comment | set_delim | variable)
             |   text
             
       , text =
-            no_skip[raw[+(char_ - "{{")]]
+            no_skip[raw[+(char_ - dL)]]
             
       , id =
-                lexeme[raw[+(char_ - skip[lit(_r1) >> "}}"])]]
+                lexeme[raw[+(char_ - skip[lit(_r1) >> dR])]]
             >>  lit(_r1)
 
       , variable =
-            (char_("&{") | !lit('/')) >> id(esc()) >> "}}"
+            (char_("&{") | !lit('/')) >> id(esc()) >> dR
             
       , section =
-                char_("#^") >> id("") >> "}}"
+                char_("#^") >> id("") >> dR
             >>  *content
-            >>  lit("{{") >> '/' >> lit(get_id()) >> "}}"
+            >>  dL >> '/' >> lit(get_id()) >> dR
 
       , partial =
-            '>' >> id("") >> "}}"
+            '>' >> id("") >> dR
         
       , comment =
-            '!' >> seek["}}"]
+            '!' >> seek[dR]
+        
+      , set_delim =
+            sink(delim())[hold(delim::trans())
+            [
+                '=' >> string >> lexeme[raw[+(~space - '=')]] >> '=' >> dR
+            ]]
     )
 }}
 
@@ -85,7 +141,7 @@ namespace bustache
 {
     format::format(char const* begin, char const* end)
     {
-        x3::phrase_parse(begin, end, *parser::content, x3::space, _contents);
+        x3::phrase_parse(begin, end, parser::start, x3::space, _contents);
     }
     
     struct accum_size
