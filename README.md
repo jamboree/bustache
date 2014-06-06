@@ -3,8 +3,8 @@
 
 C++1y implementation of [{{ mustache }}](http://mustache.github.io/)
 
-## Dependency
-* Boost
+## Dependencies
+* [Boost](http://www.boost.org/)
 * https://github.com/jamboree/spirit
 
 ## Supported Features
@@ -95,11 +95,11 @@ It's worth noting that `bustache::format` *never* fails, if the input is ill-for
     manipulator<Object, Context>
     operator()(Object const& data, Context const& context, option_type flag = normal) const;
 ```
-* Context is any associative container `Map<std::string, bustache::format>`, used for Partials.
-* `option_type` provides 2 options: `normal` and `escape_html`, if `normal` is chosen, there's no difference between `{{Tag}}` and `{{{Tag}}}`.
+* `Context` is any associative container `Map<std::string, bustache::format>`, which is referenced by Partials.
+* `option_type` provides 2 options: `normal` and `escape_html`, if `normal` is chosen, there's no difference between `{{Tag}}` and `{{{Tag}}}`, the text won't be escaped in both case.
 
-### OStream API
-This is the common usage.
+### Stream-based Output
+This is the most common usage.
 
 #### Synopsis
 ```c++
@@ -122,8 +122,8 @@ This is the common usage.
 ```
 
 ### Generate API
-`generate` is more flexible for customized output.
-In fact, the ostream API is built on `generate`.
+`generate` can be used for customized output.
+In fact, the stream-based output is built on `generate`.
 
 ```c++
     template <typename Sink>
