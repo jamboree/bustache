@@ -32,6 +32,8 @@ Techincally, you can use your custom Data type, but then you have to write the f
     std::cout << format(data); // should print "bustache templating"
 ```
 
+## Manual
+
 ### Data Model
 It's basically the JSON Data Model represented in C++. 
 
@@ -60,7 +62,7 @@ It's basically the JSON Data Model represented in C++.
 ```
 ### Format Object
 `bustache::format` parses in-memory string into AST.
-It's worth noting that `bustache::format` *never* fails, if the input is ill-formed, `bustache::format` just treat them as plain-text.
+It's worth noting that `bustache::format` *never* fails, if the input is ill-formed, `bustache::format` just treats them as plain-text.
 
 #### Header
 `#include <bustache/format.hpp>`
@@ -145,7 +147,7 @@ In fact, the ostream API is built on `generate`.
     void operator()(int data) const;
     void operator()(double data) const;
 ```
-You don't have to worry about HTML-escaping here, it's handled by `generate` depending on the option.
+You don't have to worry about HTML-escaping here, it's handled within `generate` depending on the option.
 
 ## License
 
