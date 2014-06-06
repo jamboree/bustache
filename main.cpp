@@ -48,7 +48,7 @@ int main(int argc, char** argv)
         boost::iostreams::mapped_file_source file(fname);
         bustache::format format(file);
         std::cout << "-----------------------\n";
-        std::cout << format(data, context) << std::endl;
+        std::cout << format(data, context, bustache::escape_html) << std::endl;
         std::cout << "-----------------------\n";
     }
 

@@ -23,6 +23,7 @@ namespace bustache
         <
             std::nullptr_t
           , bool
+          , int
           , double
           , std::string
           , boost::recursive_wrapper<array>
@@ -47,6 +48,7 @@ namespace bustache
         typedef void result_type;
         
         OStream& out;
+        bool const escaping;
 
         void operator()(std::nullptr_t) const {}
         
@@ -56,6 +58,14 @@ namespace bustache
             out << data;
         }
 
+        void operator()(std::string const& data) const
+        {
+            if (escaping)
+                escape_html(data.data(), data.data() + data.size());
+            else
+                out << data;
+        }
+        
         void operator()(array const& data) const
         {
             auto it = data.begin(), end = data.end();
@@ -74,17 +84,45 @@ namespace bustache
         {
             out << "[Object]";
         }
+        
+        template <std::size_t N>
+        void catenate(char const* it, char const* end, char const (&str)[N]) const
+        {
+            out.write(it, end - it);
+            out.write(str, N - 1);
+        }
+    
+        void escape_html(char const* it, char const* end) const
+        {
+            char const* last = it;
+            while (it != end)
+            {
+                switch (*it)
+                {
+                case '&': catenate(last, it, "&amp;"); break;
+                case '<': catenate(last, it, "&lt;"); break;
+                case '>': catenate(last, it, "&gt;"); break;
+                case '\\': catenate(last, it, "&#92;"); break;
+                case '"': catenate(last, it, "&quot;"); break;
+                default:  ++it; continue;
+                }
+                last = ++it;
+            }
+            out.write(last, it - last);
+        }
     };
 
     template <typename OStream, typename Context>
     struct content_visitor
     {
         typedef void result_type;
-        
+
+        content_visitor const* const parent;
         object const& data;
-        Context const& context;
         OStream& out;
-        
+        Context const& context;
+        bool const escaping;
+
         void operator()(ast::text const& text) const
         {
             out << text;
@@ -94,7 +132,12 @@ namespace bustache
         {
             auto it = data.find(variable.id);
             if (it != data.end())
-                boost::apply_visitor(value_printer<OStream>{out}, it->second);
+            {
+                value_printer<OStream> printer{out, bool(escaping & !variable.tag)};
+                boost::apply_visitor(printer, it->second);
+            }
+            else if (parent)
+                parent->operator()(variable);
         }
         
         void operator()(ast::section const& section) const
@@ -107,18 +150,20 @@ namespace bustache
                 {
                     typedef bool result_type;
                     
-                    object const& parent;
-                    Context const& context;
-                    ast::section const& section;
-                    bool inverted;
-                    OStream& out;
+                    content_visitor const& parent;
+                    ast::content_list const& contents;
+                    bool const inverted;
     
                     bool operator()(object const& data) const
                     {
                         if (!inverted)
                         {
-                            content_visitor visitor{data, context, out};
-                            for (auto const& content : section.contents)
+                            content_visitor visitor
+                            {
+                                &parent, data, parent.out
+                              , parent.context, parent.escaping
+                            };
+                            for (auto const& content : contents)
                                 boost::apply_visitor(visitor, content);
                         }
                         return false;
@@ -145,7 +190,7 @@ namespace bustache
                     {
                         return inverted;
                     }
-                } extractor{data, context, section, inverted, out};
+                } extractor{*this, section.contents, inverted};
                 if (!boost::apply_visitor(extractor, it->second))
                     return;
             }
@@ -161,9 +206,8 @@ namespace bustache
             auto it = context.find(partial);
             if (it != context.end())
             {
-                content_visitor visitor{data, context, out};
                 for (auto const& content : it->second.contents())
-                    boost::apply_visitor(visitor, content);
+                    boost::apply_visitor(*this, content);
             }
         }
         
@@ -176,8 +220,11 @@ namespace bustache
     {
         boost::io::ios_flags_saver iosate(out);
         out << std::boolalpha;
-        content_visitor<std::basic_ostream<CharT, Traits>, Context>
-            visitor{manip.data, manip.context, out};
+        content_visitor<std::basic_ostream<CharT, Traits>, Context> visitor
+        {
+            nullptr, manip.data, out
+          , manip.context, bool(manip.flag & escape_html)
+        };
         for (auto const& content : manip.contents)
             boost::apply_visitor(visitor, content);
         return out;

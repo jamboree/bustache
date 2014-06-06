@@ -11,12 +11,20 @@
 
 namespace bustache
 {
+    typedef unsigned option_type;
+    enum option : option_type
+    {
+        normal
+      , escape_html = 1
+    };
+    
     template <typename Object, typename Context>
     struct manipulator
     {
         ast::content_list const& contents;
         Object const& data;
         Context const& context;
+        option_type const flag;
     };
 
     struct format
@@ -74,16 +82,16 @@ namespace bustache
         
         template <typename Object>
         manipulator<Object, no_context>
-        operator()(Object const& data) const
+        operator()(Object const& data, option_type flag = normal) const
         {
-            return {_contents, data, no_context::dummy()};
+            return {_contents, data, no_context::dummy(), flag};
         }
         
         template <typename Object, typename Context>
         manipulator<Object, Context>
-        operator()(Object const& data, Context const& context) const
+        operator()(Object const& data, Context const& context, option_type flag = normal) const
         {
-            return {_contents, data, context};
+            return {_contents, data, context, flag};
         }
         
         ast::content_list const& contents() const
