@@ -14,12 +14,9 @@ namespace bustache
     struct format;
     
     typedef bool option_type;
-    enum option : option_type
-    {
-        normal
-      , escape_html = true
-    };
-    
+    constexpr option_type normal = false;
+    constexpr option_type escape_html = true;
+
     template <typename Object, typename Context>
     struct manipulator
     {
