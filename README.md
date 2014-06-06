@@ -19,7 +19,7 @@ C++1y implementation of [{{ mustache }}](http://mustache.github.io/)
 ## Unsupported Features
 * Lambdas
 
-### Basics
+## Basics
 {{ mustache }} is a template language for text-replacing.
 When it comes to formatting, there are 2 essential things -- *Format* and *Data*.
 In {{ bustache }}, we represent the Format as a `bustache::format` object, and `bustache::object` for Data.
@@ -28,9 +28,10 @@ Techincally, you can use your custom Data type, but then you have to write the f
 ### Data Model
 It's basically the JSON Data Model represented in C++. 
 
-__Header__: `#include <bustache/model.hpp>`
+#### Header
+``#include <bustache/model.hpp>`
 
-__Synopsis__
+#### Synopsis
 
     struct array;
     struct object;
