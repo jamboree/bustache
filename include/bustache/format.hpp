@@ -11,6 +11,8 @@
 
 namespace bustache
 {
+    struct format;
+    
     typedef bool option_type;
     enum option : option_type
     {
@@ -21,36 +23,36 @@ namespace bustache
     template <typename Object, typename Context>
     struct manipulator
     {
-        ast::content_list const& contents;
+        format const& fmt;
         Object const& data;
         Context const& context;
         option_type const flag;
     };
 
+    struct no_context
+    {
+        typedef std::pair<std::string, format> value_type;
+        typedef value_type const* iterator;
+        
+        constexpr iterator find(std::string const&) const
+        {
+            return nullptr;
+        }
+        
+        constexpr iterator end() const
+        {
+            return nullptr;
+        }
+
+        static no_context const& dummy()
+        {
+            static no_context const _{};
+            return _;
+        }
+    };
+    
     struct format
     {
-        struct no_context
-        {
-            typedef std::pair<std::string, format> value_type;
-            typedef value_type const* iterator;
-            
-            constexpr iterator find(std::string const&) const
-            {
-                return nullptr;
-            }
-            
-            constexpr iterator end() const
-            {
-                return nullptr;
-            }
-    
-            static no_context const& dummy()
-            {
-                static no_context const _{};
-                return _;
-            }
-        };
-        
         format(char const* begin, char const* end);
         
         template <typename Source>
@@ -84,14 +86,14 @@ namespace bustache
         manipulator<Object, no_context>
         operator()(Object const& data, option_type flag = normal) const
         {
-            return {_contents, data, no_context::dummy(), flag};
+            return {*this, data, no_context::dummy(), flag};
         }
         
         template <typename Object, typename Context>
         manipulator<Object, Context>
         operator()(Object const& data, Context const& context, option_type flag = normal) const
         {
-            return {_contents, data, context, flag};
+            return {*this, data, context, flag};
         }
         
         ast::content_list const& contents() const

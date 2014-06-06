@@ -21,46 +21,13 @@ namespace bustache { namespace parser
     using x3::no_skip;
     using x3::skip;
     using x3::seek;
-    using x3::sink;
-    using x3::hold;
     using x3::with;
     using x3::raw;
+    using x3::as;
     
-    struct delim
-    {
-        typedef std::tuple<std::string, std::string> type;
-        
-        template <int N>
-        struct get
-        {
-            template <typename Context>
-            std::string const& operator()(Context const& ctx) const
-            {
-                return std::get<N>(x3::get<delim>(ctx));
-            }
-        };
-        
-        struct trans
-        {
-            static type pre(type const&)
-            {
-                return {};
-            }
-            
-            static void post(type& copy, type& attr)
-            {
-                attr = std::move(copy);
-            }
-        };
-        
-        template <typename Context>
-        type& operator()(Context const& ctx) const
-        {
-            return x3::get<delim>(ctx);
-        }
-    };
-    
-    typedef x3::filter<x3::skipper_tag, delim> filter;
+    struct delim_tag;
+    typedef std::tuple<std::string, std::string> delim;
+    typedef x3::filter<x3::skipper_tag, delim_tag> filter;
 
     x3::rule<class start, ast::content_list> const start;
     x3::rule<class content, ast::content, filter> const content;
@@ -71,11 +38,7 @@ namespace bustache { namespace parser
     x3::rule<class partial, ast::partial, filter> const partial;
     x3::rule<class comment, ast::comment, filter> const comment;
     x3::rule<class set_delim, void, filter> const set_delim;
-    
-    x3::as<boost::string_ref> const as_text;
-    auto const dL = lit(delim::get<0>());
-    auto const dR = lit(delim::get<1>());
-    
+
     struct get_id
     {
         template <typename Context>
@@ -93,13 +56,35 @@ namespace bustache { namespace parser
             return x3::_val(ctx).tag == '{'? "}" : "";
         }
     };
+    
+    template <int N>
+    struct get_delim
+    {
+        template <typename Context>
+        std::string const& operator()(Context const& ctx) const
+        {
+            return std::get<N>(x3::get<delim_tag>(ctx));
+        }
+    };
+        
+    struct assign_delim
+    {
+        template <typename Context>
+        void operator()(Context const& ctx, delim& attr) const
+        {
+            x3::get<delim_tag>(ctx) = std::move(attr);
+        }        
+    };
 
+    as<boost::string_ref> const as_text;
     x3::param_eval<0> const _r1;
+    auto const dL = lit(get_delim<0>());
+    auto const dR = lit(get_delim<1>());
 
     BOOST_SPIRIT_DEFINE
     (
         start =
-            with<delim&>(delim::type{"{{", "}}"})
+            with<delim_tag&>(delim{"{{", "}}"})
             [
                 *content
             ]
@@ -130,10 +115,10 @@ namespace bustache { namespace parser
             '!' >> seek[dR]
         
       , set_delim =
-            sink(delim())[hold(delim::trans())
+            as<delim>()
             [
                 '=' >> string >> lexeme[raw[+(~space - '=')]] >> '=' >> dR
-            ]]
+            ] / assign_delim()
     )
 }}
 

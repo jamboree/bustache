@@ -41,21 +41,24 @@ namespace bustache
         using unordered_map::unordered_map;
         using unordered_map::operator=;
     };
+}
 
-    template <typename OStream>
+namespace bustache { namespace detail
+{
+    template <typename Sink>
     struct value_printer
     {
         typedef void result_type;
         
-        OStream& out;
+        Sink const& sink;
         bool const escaping;
 
         void operator()(std::nullptr_t) const {}
         
         template <typename T>
-        void operator()(T const& data) const
+        void operator()(T data) const
         {
-            out << data;
+            sink(data);
         }
 
         void operator()(std::string const& data) const
@@ -63,7 +66,7 @@ namespace bustache
             if (escaping)
                 escape_html(data.data(), data.data() + data.size());
             else
-                out << data;
+                sink(data);
         }
         
         void operator()(array const& data) const
@@ -74,7 +77,7 @@ namespace bustache
                 boost::apply_visitor(*this, *it);
                 while (++it != end)
                 {
-                    out << ',';
+                    literal(",");
                     boost::apply_visitor(*this, *it);
                 }
             }
@@ -82,16 +85,9 @@ namespace bustache
 
         void operator()(object const&) const
         {
-            out << "[Object]";
+            literal("[Object]");
         }
-        
-        template <std::size_t N>
-        void catenate(char const* it, char const* end, char const (&str)[N]) const
-        {
-            out.write(it, end - it);
-            out.write(str, N - 1);
-        }
-    
+
         void escape_html(char const* it, char const* end) const
         {
             char const* last = it;
@@ -99,33 +95,39 @@ namespace bustache
             {
                 switch (*it)
                 {
-                case '&': catenate(last, it, "&amp;"); break;
-                case '<': catenate(last, it, "&lt;"); break;
-                case '>': catenate(last, it, "&gt;"); break;
-                case '\\': catenate(last, it, "&#92;"); break;
-                case '"': catenate(last, it, "&quot;"); break;
+                case '&': sink(last, it); literal("&amp;"); break;
+                case '<': sink(last, it); literal("&lt;"); break;
+                case '>': sink(last, it); literal("&gt;"); break;
+                case '\\': sink(last, it); literal("&#92;"); break;
+                case '"': sink(last, it); literal("&quot;"); break;
                 default:  ++it; continue;
                 }
                 last = ++it;
             }
-            out.write(last, it - last);
+            sink(last, it);
+        }
+
+        template <std::size_t N>
+        void literal(char const (&str)[N]) const
+        {
+            sink(str, str + (N - 1));
         }
     };
 
-    template <typename OStream, typename Context>
+    template <typename Sink, typename Context>
     struct content_visitor
     {
         typedef void result_type;
 
         content_visitor const* const parent;
         object const& data;
-        OStream& out;
+        Sink const& sink;
         Context const& context;
         bool const escaping;
 
         void operator()(ast::text const& text) const
         {
-            out << text;
+            sink(text.begin(), text.end());
         }
         
         void operator()(ast::variable const& variable) const
@@ -133,7 +135,7 @@ namespace bustache
             auto it = data.find(variable.id);
             if (it != data.end())
             {
-                value_printer<OStream> printer{out, escaping && !variable.tag};
+                value_printer<Sink> printer{sink, escaping && !variable.tag};
                 boost::apply_visitor(printer, it->second);
             }
             else if (parent)
@@ -160,7 +162,7 @@ namespace bustache
                         {
                             content_visitor visitor
                             {
-                                &parent, data, parent.out
+                                &parent, data, parent.sink
                               , parent.context, parent.escaping
                             };
                             for (auto const& content : contents)
@@ -214,18 +216,59 @@ namespace bustache
         void operator()(ast::comment) const {} // never called
     };
 
+    template <typename CharT, typename Traits>
+    struct ostream_sink
+    {
+        std::basic_ostream<CharT, Traits>& out;
+        
+        void operator()(char const* it, char const* end) const
+        {
+            out.write(it, end - it);
+        }
+
+        template <typename T>
+        void operator()(T data) const
+        {
+            out << data;
+        }
+    };
+}}
+
+namespace bustache
+{
+    template <typename Sink>
+    void generate
+    (
+        format const& fmt, object const& data, Sink const& sink
+      , option_type flag = normal
+    )
+    {
+        generate(fmt, data, no_context::dummy(), sink, flag);
+    }
+    
+    template <typename Context, typename Sink>
+    void generate
+    (
+        format const& fmt, object const& data, Context const& context
+      , Sink const& sink, option_type flag = normal
+    )
+    {
+        detail::content_visitor<Sink, Context> visitor
+        {
+            nullptr, data, sink, context, flag
+        };
+        for (auto const& content : fmt.contents())
+            boost::apply_visitor(visitor, content);
+    }
+    
     template <typename CharT, typename Traits, typename Context>
     std::basic_ostream<CharT, Traits>&
     operator<<(std::basic_ostream<CharT, Traits>& out, manipulator<object, Context> const& manip)
     {
         boost::io::ios_flags_saver iosate(out);
         out << std::boolalpha;
-        content_visitor<std::basic_ostream<CharT, Traits>, Context> visitor
-        {
-            nullptr, manip.data, out, manip.context, manip.flag
-        };
-        for (auto const& content : manip.contents)
-            boost::apply_visitor(visitor, content);
+        detail::ostream_sink<CharT, Traits> sink{out};
+        generate(manip.fmt, manip.data, manip.context, sink, manip.flag);
         return out;
     }
 }
