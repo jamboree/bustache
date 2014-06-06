@@ -147,7 +147,7 @@ In fact, the ostream API is built on `generate`.
 ```
 You don't have to worry about HTML-escaping here, it's handled by `generate` depending on the option.
 
-## Liscence
+## License
 
     Copyright (c) 2014 Jamboree
 
