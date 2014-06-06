@@ -94,7 +94,7 @@ It's worth noting that `bustache::format` *never* fails, if the input is ill-for
     operator()(Object const& data, Context const& context, option_type flag = normal) const;
 ```
 * Context is any associative container `Map<std::string, bustache::format>`, used for Partials.
-* `option_type` provides 2 options: `normal`*(default)* and `escape_html`, if `normal` is choosed, there's no difference between `{{Tag}}` and `{{{Tag}}}`.
+* `option_type` provides 2 options: `normal` and `escape_html`, if `normal` is chosen, there's no difference between `{{Tag}}` and `{{{Tag}}}`.
 
 ### OStream API
 This is the common usage.
