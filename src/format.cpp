@@ -7,6 +7,8 @@
 #include <bustache/format.hpp>
 #include <boost/spirit/home/x3.hpp>
 #include <boost/fusion/adapted/std_tuple.hpp>
+#include <boost/algorithm/string/trim.hpp>
+#include <boost/range/iterator_range.hpp>
 
 namespace x3 = boost::spirit::x3;
 
@@ -90,8 +92,9 @@ namespace bustache { namespace parser
             ]
             
       , content =
-                text
-            |   dL >> (section | partial | comment | set_delim | variable)
+                dL >> section // allows section to preskip ws
+            |   text
+            |   dL >> (partial | comment | set_delim | variable)
             
       , text =
             no_skip[raw[+(char_ - dL)]]
@@ -120,6 +123,27 @@ namespace bustache { namespace parser
                 '=' >> string >> lexeme[raw[+(~space - '=')]] >> '=' >> dR
             ] / assign_delim()
     )
+
+    template <typename Context>
+    inline void
+    on_success(decltype(section)&, char const*, char const*, ast::section& section, Context const&)
+    {
+        using namespace boost::algorithm;
+        // trim the trailing ws
+        auto& contents = section.contents;
+        if (!contents.empty())
+        {
+            if (auto p = boost::get<ast::text>(&contents.back()))
+            {
+                auto rng = boost::make_iterator_range(p->begin(), p->end());
+                rng = trim_right_copy(rng);
+                if (rng.empty())
+                    contents.pop_back();
+                else
+                    *p = ast::text(rng.begin(), rng.end() - rng.begin());
+            }
+        }
+    }
 }}
 
 namespace bustache
