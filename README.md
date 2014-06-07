@@ -85,7 +85,7 @@ It's worth noting that `bustache::format` *never* fails, if the input is ill-for
     template <std::size_t N>
     format(char const (&source)[N]) // [4]
 ```
-* `Source` is an object that represents continous memory, like `std::string`, `std::vector<char>` or `boost::iostreams::mapped_file_source` that provides raw access to memory through `source.data()` and `source.size()`.
+* `Source` is an object that represents continous memory, like `std::string`, `std::vector<char>` or `boost::iostreams::mapped_file_source` that provides access to raw memory through `source.data()` and `source.size()`.
 * Version 1~2 doesn't hold the text, you must ensure the memory referenced is valid and not modified at the use of the format object.
 * Version 3 copies the necessary text into its internal buffer, so there's no lifetime issue.
 * Version 4 allows implicit conversion from literal.
@@ -153,6 +153,11 @@ In fact, the stream-based output is built on `generate`.
     void operator()(double data) const;
 ```
 You don't have to worry about HTML-escaping here, it's handled within `generate` depending on the option.
+
+## Inconformance
+* We don't treat `{{{` and `}}}` as special tokens, instead, they're `{{` followed by `{` and `}}` preceded by `}`.
+That means `{{ { Tag } }}` is also valid. If you change the Delimiter to, say, `[` and `]`, then `[{Tag}]` is valid as well.
+
 
 ## License
 
