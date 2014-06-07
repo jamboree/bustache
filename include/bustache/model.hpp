@@ -63,10 +63,11 @@ namespace bustache { namespace detail
 
         void operator()(std::string const& data) const
         {
+            auto it = data.data(), end = it + data.size();
             if (escaping)
-                escape_html(data.data(), data.data() + data.size());
+                escape_html(it, end);
             else
-                sink(data);
+                sink(it, end);
         }
         
         void operator()(array const& data) const

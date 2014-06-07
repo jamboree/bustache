@@ -90,8 +90,8 @@ namespace bustache { namespace parser
             ]
             
       , content =
-                dL >> (section | partial | comment | set_delim | variable)
-            |   text
+                text
+            |   dL >> (section | partial | comment | set_delim | variable)
             
       , text =
             no_skip[raw[+(char_ - dL)]]
