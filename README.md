@@ -80,10 +80,15 @@ It's worth noting that `bustache::format` *never* fails, if the input is ill-for
     // ownig text
     template <typename Source>
     explicit format(Source const&& source); // [3]
+    
+    // not ownig text
+    template <std::size_t N>
+    format(char const (&source)[N]) // [4]
 ```
-* `Source` is an object that represents memory, like `std::string`, `std::vector<char>` or `boost::iostreams::mapped_file_source` that provides access to continous memory through `source.data()` and `source.size()`.
+* `Source` is an object that represents continous memory, like `std::string`, `std::vector<char>` or `boost::iostreams::mapped_file_source` that provides raw access to memory through `source.data()` and `source.size()`.
 * Version 1~2 doesn't hold the text, you must ensure the memory referenced is valid and not modified at the use of the format object.
 * Version 3 copies the necessary text into its internal buffer, so there's no lifetime issue.
+* Version 4 allows implicit conversion from literal.
 
 *Manipulator*
 ```c++
@@ -96,7 +101,7 @@ It's worth noting that `bustache::format` *never* fails, if the input is ill-for
     operator()(Object const& data, Context const& context, option_type flag = normal) const;
 ```
 * `Context` is any associative container `Map<std::string, bustache::format>`, which is referenced by Partials.
-* `option_type` provides 2 options: `normal` and `escape_html`, if `normal` is chosen, there's no difference between `{{Tag}}` and `{{{Tag}}}`, the text won't be escaped in both case.
+* `option_type` provides 2 options: `normal` and `escape_html`, if `normal` is chosen, there's no difference between `{{Tag}}` and `{{{Tag}}}`, the text won't be escaped in both cases.
 
 ### Stream-based Output
 This is the most common usage.
