@@ -27,9 +27,9 @@ Techincally, you can use your custom Data type, but then you have to write the f
 
 ### Quick Example
 ```c++
-    bustache::format format{"{{mustache}} templating"};
-    bustache::object data{{"mustache", std::string("bustache")}};
-    std::cout << format(data); // should print "bustache templating"
+bustache::format format{"{{mustache}} templating"};
+bustache::object data{{"mustache", std::string("bustache")}};
+std::cout << format(data); // should print "bustache templating"
 ```
 
 ## Manual
@@ -42,23 +42,23 @@ It's basically the JSON Data Model represented in C++.
 
 #### Synopsis
 ```c++
-    struct array;
-    struct object;
-    
-    using value =
-        boost::variant
-        <
-            std::nullptr_t
-          , bool
-          , int
-          , double
-          , std::string
-          , boost::recursive_wrapper<array>
-          , boost::recursive_wrapper<object>
-        >;
-    
-    struct array = std::vector<value>;
-    struct object = std::unordered_map<std::string, value>;
+struct array;
+struct object;
+
+using value =
+    boost::variant
+    <
+        std::nullptr_t
+      , bool
+      , int
+      , double
+      , std::string
+      , boost::recursive_wrapper<array>
+      , boost::recursive_wrapper<object>
+    >;
+
+struct array = std::vector<value>;
+struct object = std::unordered_map<std::string, value>;
 ```
 ### Format Object
 `bustache::format` parses in-memory string into AST.
@@ -70,35 +70,36 @@ It's worth noting that `bustache::format` *never* fails, if the input is ill-for
 #### Synopsis
 *Constructors*
 ```c++
-    // not ownig text
-    format(char const* begin, char const* end); // [1]
-    
-    // not ownig text
-    template <typename Source>
-    explicit format(Source const& source); // [2]
-    
-    // ownig text
-    template <typename Source>
-    explicit format(Source const&& source); // [3]
-    
-    // not ownig text
-    template <std::size_t N>
-    format(char const (&source)[N]) // [4]
+// not ownig text
+format(char const* begin, char const* end); // [1]
+
+// not ownig text
+template <std::size_t N>
+format(char const (&source)[N]); // [2]
+
+// not ownig text
+template <typename Source>
+explicit format(Source const& source); // [3]
+
+// ownig text
+template <typename Source>
+explicit format(Source const&& source); // [4]
+
 ```
 * `Source` is an object that represents continous memory, like `std::string`, `std::vector<char>` or `boost::iostreams::mapped_file_source` that provides access to raw memory through `source.data()` and `source.size()`.
-* Version 1~2 doesn't hold the text, you must ensure the memory referenced is valid and not modified at the use of the format object.
-* Version 3 copies the necessary text into its internal buffer, so there's no lifetime issue.
-* Version 4 allows implicit conversion from literal.
+* Version 2 allows implicit conversion from literal.
+* Version 1~3 doesn't hold the text, you must ensure the memory referenced is valid and not modified at the use of the format object.
+* Version 4 copies the necessary text into its internal buffer, so there's no lifetime issue.
 
 *Manipulator*
 ```c++
-    template <typename Object>
-    manipulator<Object, no_context>
-    operator()(Object const& data, option_type flag = normal) const;
-    
-    template <typename Object, typename Context>
-    manipulator<Object, Context>
-    operator()(Object const& data, Context const& context, option_type flag = normal) const;
+template <typename Object>
+manipulator<Object, no_context>
+operator()(Object const& data, option_type flag = normal) const;
+
+template <typename Object, typename Context>
+manipulator<Object, Context>
+operator()(Object const& data, Context const& context, option_type flag = normal) const;
 ```
 * `Context` is any associative container `Map<std::string, bustache::format>`, which is referenced by Partials.
 * `option_type` provides 2 options: `normal` and `escape_html`, if `normal` is chosen, there's no difference between `{{Tag}}` and `{{{Tag}}}`, the text won't be escaped in both cases.
@@ -108,22 +109,22 @@ This is the most common usage.
 
 #### Synopsis
 ```c++
-    template <typename CharT, typename Traits, typename Context>
-    std::basic_ostream<CharT, Traits>&
-    operator<<(std::basic_ostream<CharT, Traits>& out, manipulator<object, Context> const& manip);
+template <typename CharT, typename Traits, typename Context>
+std::basic_ostream<CharT, Traits>&
+operator<<(std::basic_ostream<CharT, Traits>& out, manipulator<object, Context> const& manip);
 ```
 #### Example
 ```c++
-    // open the template file 
-    boost::iostreams::mapped_file_source file(...);
-    // create format from source
-    bustache::format format(file);
-    // create the data we want to output
-    bustache::object data{...};
-    // create the context for Partials
-    std::unordered_map<std::string, bustache::format> context{...};
-    // output the result
-    std::cout << format(data, context, bustache::escape_html);
+// open the template file 
+boost::iostreams::mapped_file_source file(...);
+// create format from source
+bustache::format format(file);
+// create the data we want to output
+bustache::object data{...};
+// create the context for Partials
+std::unordered_map<std::string, bustache::format> context{...};
+// output the result
+std::cout << format(data, context, bustache::escape_html);
 ```
 
 ### Generate API
@@ -131,26 +132,26 @@ This is the most common usage.
 In fact, the stream-based output is built on `generate`.
 
 ```c++
-    template <typename Sink>
-    void generate
-    (
-        format const& fmt, object const& data, Sink const& sink
-      , option_type flag = normal
-    );
-    
-    template <typename Context, typename Sink>
-    void generate
-    (
-        format const& fmt, object const& data, Context const& context
-      , Sink const& sink, option_type flag = normal
-    );
+template <typename Sink>
+void generate
+(
+    format const& fmt, object const& data, Sink const& sink
+  , option_type flag = normal
+);
+
+template <typename Context, typename Sink>
+void generate
+(
+    format const& fmt, object const& data, Context const& context
+  , Sink const& sink, option_type flag = normal
+);
 ```
 `Sink` is a polymorphic functor that handles:
 ```c++
-    void operator()(char const* it, char const* end) const;
-    void operator()(bool data) const;
-    void operator()(int data) const;
-    void operator()(double data) const;
+void operator()(char const* it, char const* end) const;
+void operator()(bool data) const;
+void operator()(int data) const;
+void operator()(double data) const;
 ```
 You don't have to worry about HTML-escaping here, it's handled within `generate` depending on the option.
 
