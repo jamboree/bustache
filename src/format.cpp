@@ -24,7 +24,7 @@ namespace bustache { namespace parser
     using x3::with;
     using x3::raw;
     using x3::as;
-    
+
     struct delim_tag;
     typedef std::tuple<std::string, std::string> delim;
     typedef x3::filter<x3::skipper_tag, delim_tag> filter;
@@ -47,7 +47,7 @@ namespace bustache { namespace parser
             return x3::_val(ctx).id;
         }
     };
-    
+
     struct esc
     {
         template <typename Context>
@@ -56,7 +56,16 @@ namespace bustache { namespace parser
             return x3::_val(ctx).tag == '{'? "}" : "";
         }
     };
-    
+
+    struct make_delim
+    {
+        template <typename Context>
+        delim operator()(Context const&) const
+        {
+            return delim{"{{", "}}"};
+        }
+    };
+
     template <int N>
     struct get_delim
     {
@@ -66,44 +75,44 @@ namespace bustache { namespace parser
             return std::get<N>(x3::get<delim_tag>(ctx));
         }
     };
-        
+
     struct assign_delim
     {
         template <typename Context>
         void operator()(Context const& ctx, delim& attr) const
         {
             x3::get<delim_tag>(ctx) = std::move(attr);
-        }        
+        }
     };
 
-    as<boost::string_ref> const as_text;
     x3::param_eval<0> const _r1;
     auto const dL = lit(get_delim<0>());
     auto const dR = lit(get_delim<1>());
+    std::array<char, 5> const trim_set{'#', '^', '/', '!', '='};
 
     BOOST_SPIRIT_DEFINE
     (
         start =
-            with<delim_tag&>(delim{"{{", "}}"})
+            with<delim_tag>(make_delim())
             [
                 *content
             ]
-            
+
       , content =
                 dL >> (section | comment | set_delim)
             |   text // keep the ws before variable and partial
             |   dL >> (partial | variable)
-            
+
       , text =
-            no_skip[raw[+(char_ - (skip[dL >> char_("#^/")] | dL))]]
-            
+            no_skip[raw[+(char_ - (skip[dL >> char_(trim_set)] | dL))]]
+
       , id =
                 lexeme[raw[+(char_ - skip[lit(_r1) >> dR])]]
             >>  lit(_r1)
 
       , variable =
             (char_("&{") | !lit('/')) >> id(esc()) >> dR
-            
+
       , section =
                 char_("#^") >> id("") >> dR
             >>  *content
@@ -111,10 +120,10 @@ namespace bustache { namespace parser
 
       , partial =
             '>' >> id("") >> dR
-        
+
       , comment =
             '!' >> seek[dR]
-        
+
       , set_delim =
             as<delim>()
             [
@@ -129,7 +138,7 @@ namespace bustache
     {
         x3::phrase_parse(begin, end, parser::start, x3::space, _contents);
     }
-    
+
     struct accum_size
     {
         typedef std::size_t result_type;
@@ -146,14 +155,14 @@ namespace bustache
                 n += boost::apply_visitor(*this, content);
             return n;
         }
-        
+
         template <typename T>
         std::size_t operator()(T const&) const
         {
             return 0;
         }
     };
-    
+
     std::size_t format::text_size() const
     {
         accum_size accum;
@@ -166,7 +175,7 @@ namespace bustache
     struct insert_text
     {
         typedef void result_type;
-        
+
         std::string& data;
 
         void operator()(ast::text& text) const
@@ -181,11 +190,11 @@ namespace bustache
             for (auto& content : section.contents)
                 boost::apply_visitor(*this, content);
         }
-        
+
         template <typename T>
         void operator()(T const&) const {}
     };
-    
+
     void format::copy_text(std::size_t n)
     {
         _text.reserve(n);
