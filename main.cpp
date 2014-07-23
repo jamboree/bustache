@@ -10,27 +10,27 @@ int main(int argc, char** argv)
     
     object data
     {
-        {"header", std::string("Colors")}
+        {"header", "Colors"}
       , {"items",
             array
             {
                 object
                 {
-                    {"name", std::string("red")}
+                    {"name", "red"}
                   , {"first", true}
-                  , {"url", std::string("#Red")}
+                  , {"url", "#Red"}
                 }
               , object
                 {
-                    {"name", std::string("green")}
+                    {"name", "green"}
                   , {"link", true}
-                  , {"url", std::string("#Green")}
+                  , {"url", "#Green"}
                 }
               , object
                 {
-                    {"name", std::string("blue")}
+                    {"name", "blue"}
                   , {"link", true}
-                  , {"url", std::string("#Blue")}
+                  , {"url", "#Blue"}
                 }
             }
         }

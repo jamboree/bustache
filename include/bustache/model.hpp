@@ -15,10 +15,17 @@
 
 namespace bustache
 {
-    struct array;
-    struct object;
+    struct value;
+
+    struct array : std::vector<value>
+    {
+        using vector::vector;
+        using vector::operator=;
+    };
     
-    using value =
+    struct object;
+
+    using value_base =
         boost::variant
         <
             std::nullptr_t
@@ -26,14 +33,16 @@ namespace bustache
           , int
           , double
           , std::string
-          , boost::recursive_wrapper<array>
+          , array
           , boost::recursive_wrapper<object>
         >;
     
-    struct array : std::vector<value>
+    struct value : value_base
     {
-        using vector::vector;
-        using vector::operator=;
+        using value_base::value_base;
+        using value_base::operator=;
+        
+        value(char const* str) : value_base(std::string(str)) {}
     };
     
     struct object : std::unordered_map<std::string, value>
