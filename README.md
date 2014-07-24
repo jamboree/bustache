@@ -42,10 +42,11 @@ It's basically the JSON Data Model represented in C++.
 
 #### Synopsis
 ```c++
-struct array;
+struct value;
+struct array = std::vector<value>;
 struct object;
 
-using value =
+struct value =
     boost::variant
     <
         std::nullptr_t
@@ -53,11 +54,10 @@ using value =
       , int
       , double
       , std::string
-      , boost::recursive_wrapper<array>
+      , array
       , boost::recursive_wrapper<object>
     >;
 
-struct array = std::vector<value>;
 struct object = std::unordered_map<std::string, value>;
 ```
 ### Format Object
