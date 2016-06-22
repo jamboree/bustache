@@ -1,147 +1,380 @@
 /*//////////////////////////////////////////////////////////////////////////////
-    Copyright (c) 2014 Jamboree
+    Copyright (c) 2014-2016 Jamboree
 
     Distributed under the Boost Software License, Version 1.0. (See accompanying
     file LICENSE_1_0.txt or copy at http://www.boost.org/LICENSE_1_0.txt)
 //////////////////////////////////////////////////////////////////////////////*/
+#include <cctype>
+#include <utility>
 #include <bustache/format.hpp>
-#include <boost/spirit/home/x3.hpp>
-#include <boost/fusion/adapted/std_tuple.hpp>
 
-namespace x3 = boost::spirit::x3;
-
-namespace bustache { namespace parser
+namespace bustache { namespace parser { namespace
 {
-    using x3::lit;
-    using x3::space;
-    using x3::char_;
-    using x3::string;
+    using delim = std::pair<std::string, std::string>;
 
-    using x3::lexeme;
-    using x3::no_skip;
-    using x3::skip;
-    using x3::seek;
-    using x3::with;
-    using x3::raw;
-    using x3::as;
-
-    struct delim_tag;
-    typedef std::tuple<std::string, std::string> delim;
-    typedef x3::filter<x3::skipper_tag, delim_tag> filter;
-
-    x3::rule<class start, ast::content_list> const start;
-    x3::rule<class content, ast::content, filter> const content;
-    x3::rule<class text, boost::string_ref, filter> const text;
-    x3::rule<class id, std::string(char const*), filter> const id;
-    x3::rule<class variable, ast::variable, filter> const variable;
-    x3::rule<class section, ast::section, filter> const section;
-    x3::rule<class partial, ast::partial, filter> const partial;
-    x3::rule<class comment, ast::comment, filter> const comment;
-    x3::rule<class set_delim, void, filter> const set_delim;
-
-    struct get_id
+    template<class I>
+    inline void skip(I& i, I e)
     {
-        template <typename Context>
-        std::string const& operator()(Context const& ctx) const
-        {
-            return x3::_val(ctx).id;
-        }
-    };
+        while (i != e && std::isspace(*i))
+            ++i;
+    }
 
-    struct esc
+    template<class I>
+    inline bool parse_char(I& i, I e, char c)
     {
-        template <typename Context>
-        char const* operator()(Context const& ctx) const
+        if (i != e && *i == c)
         {
-            return x3::_val(ctx).tag == '{'? "}" : "";
+            ++i;
+            return true;
         }
-    };
+        return false;
+    }
 
-    struct make_delim
+    template<class I>
+    inline bool parse_lit(I& i, I e, boost::string_ref const& str)
     {
-        template <typename Context>
-        delim operator()(Context const&) const
+        I i0 = i;
+        for (char c : str)
         {
-            return delim{"{{", "}}"};
+            if (!parse_char(i, e, c))
+            {
+                i = i0;
+                return false;
+            }
         }
-    };
+        return true;
+    }
 
-    template <int N>
-    struct get_delim
+    template<class I>
+    void expect_key(I& i, I e, delim& d, std::string& attr, bool suffix)
     {
-        template <typename Context>
-        std::string const& operator()(Context const& ctx) const
+        skip(i, e);
+        I i0 = i;
+        while (i != e)
         {
-            return std::get<N>(x3::get<delim_tag>(ctx));
+            I i1 = i;
+            skip(i, e);
+            if (!suffix || parse_char(i, e, '}'))
+            {
+                skip(i, e);
+                if (parse_lit(i, e, d.second))
+                {
+                    attr.assign(i0, i1);
+                    if (i0 == i1)
+                        throw format_error(error_badkey);
+                    return;
+                }
+            }
+            if (i != e)
+                ++i;
         }
-    };
+        throw format_error(error_badkey);
+    }
 
-    struct assign_delim
-    {
-        template <typename Context>
-        void operator()(Context const& ctx, delim& attr) const
-        {
-            x3::get<delim_tag>(ctx) = std::move(attr);
-        }
-    };
-
-    x3::param_eval<0> const _r1;
-    auto const dL = lit(get_delim<0>());
-    auto const dR = lit(get_delim<1>());
-    std::array<char, 5> const trim_set{'#', '^', '/', '!', '='};
-
-    BOOST_SPIRIT_DEFINE
+    template<class I>
+    void parse_contents
     (
-        start =
-            with<delim_tag>(make_delim())
-            [
-                *content
-            ]
+        I i0, I& i, I e, delim& d, bool& pure,
+        ast::content_list& attr, boost::string_ref const& section
+    );
 
-      , content =
-                dL >> (section | comment | set_delim)
-            |   text // keep the ws before variable and partial
-            |   dL >> (partial | variable)
+    template<class I>
+    inline bool expect_section(I& i, I e, delim& d, bool& pure, ast::section& attr)
+    {
+        expect_key(i, e, d, attr.key, false);
+        I i0 = i;
+        if (pure)
+        {
+            while (i != e)
+            {
+                if (*i == '\n')
+                {
+                    i0 = ++i;
+                    break;
+                }
+                else if (std::isspace(*i))
+                    ++i;
+                else
+                {
+                    pure = false;
+                    break;
+                }
+            }
+        }
+        bool standalone = pure;
+        parse_contents(i0, i, e, d, pure, attr.contents, attr.key);
+        return standalone;
+    }
 
-      , text =
-            no_skip[raw[+(char_ - (skip[dL >> char_(trim_set)] | dL))]]
+    template<class I>
+    void expect_comment(I& i, I e, delim& d)
+    {
+        while (!parse_lit(i, e, d.second))
+        {
+            if (i == e)
+                throw format_error(error_delim);
+            ++i;
+        }
+    }
 
-      , id =
-                lexeme[raw[+(char_ - skip[lit(_r1) >> dR])]]
-            >>  lit(_r1)
+    template<class I>
+    void expect_set_delim(I& i, I e, delim& d)
+    {
+        skip(i, e);
+        I i0 = i;
+        while (i != e)
+        {
+            if (std::isspace(*i))
+                break;
+            ++i;
+        }
+        if (i == e)
+            throw format_error(error_baddelim);
+        delim d2;
+        d2.first.assign(i0, i);
+        skip(i, e);
+        i0 = i;
+        I i1 = i;
+        bool bailout = false;
+        while (i != e)
+        {
+            if (*i == '=')
+            {
+                if (i0 == i1)
+                    throw format_error(error_baddelim);
+                d2.second.assign(i0, i1);
+                skip(++i, e);
+                if (!parse_lit(i, e, d.second))
+                    throw format_error(error_delim);
+                d = std::move(d2);
+                return;
+            }
+            if (bailout)
+                break;
+            if (std::isspace(*i))
+            {
+                i1 = i;
+                skip(++i, e);
+                bailout = true;
+            }
+            else
+                i1 = ++i;
+        }
+        throw format_error(error_set_delim);
+    }
 
-      , variable =
-            (char_("&{") | !lit('/')) >> id(esc()) >> dR
+    struct tag_result
+    {
+        bool is_end_section;
+        bool check_standalone;
+        bool is_standalone;
+    };
 
-      , section =
-                char_("#^") >> id("") >> dR
-            >>  *content
-            >>  dL >> '/' >> lit(get_id()) >> dR
-
-      , partial =
-            '>' >> id("") >> dR
-
-      , comment =
-            '!' >> seek[dR]
-
-      , set_delim =
-            as<delim>()
-            [
-                '=' >> string >> lexeme[raw[+(~space - '=')]] >> '=' >> dR
-            ] / assign_delim()
+    template<class I>
+    tag_result expect_tag
+    (
+        I& i, I e, delim& d, bool& pure,
+        ast::content& attr, boost::string_ref const& section
     )
-}}
+    {
+        skip(i, e);
+        if (i == e)
+            throw format_error(error_badkey);
+        tag_result ret{};
+        switch (*i)
+        {
+        case '#':
+        case '^':
+        {
+            ast::section a;
+            a.tag = *i;
+            ret.is_standalone = expect_section(++i, e, d, pure, a);
+            attr = std::move(a);
+            return ret;
+        }
+        case '/':
+            skip(++i, e);
+            if (section.empty() || !parse_lit(i, e, section))
+                throw format_error(error_section);
+            skip(i, e);
+            if (!parse_lit(i, e, d.second))
+                throw format_error(error_delim);
+            ret.check_standalone = pure;
+            ret.is_end_section = true;
+            break;
+        case '!':
+        {
+            expect_comment(++i, e, d);
+            ret.check_standalone = pure;
+            break;
+        }
+        case '=':
+        {
+            expect_set_delim(++i, e, d);
+            ret.check_standalone = pure;
+            break;
+        }
+        case '>':
+        {
+            ast::partial a;
+            expect_key(++i, e, d, a.key, false);
+            attr = std::move(a);
+            ret.check_standalone = pure;
+            break;
+        }
+        case '&':
+        case '{':
+        {
+            ast::variable a;
+            a.tag = *i;
+            expect_key(++i, e, d, a.key, a.tag == '{');
+            attr = std::move(a);
+            pure = false;
+            break;
+        }
+        default:
+            ast::variable a;
+            expect_key(i, e, d, a.key, false);
+            attr = std::move(a);
+            pure = false;
+            break;
+        }
+        return ret;
+    }
+
+    // return true if it ends
+    template<class I>
+    bool parse_content
+    (
+        I& i0, I& i, I e, delim& d, bool& pure,
+        boost::string_ref& text, ast::content& attr,
+        boost::string_ref const& section
+    )
+    {
+        I i1 = i;
+        I i2 = i;
+        while (i != e)
+        {
+            if (*i == '\n')
+            {
+                pure = true;
+                i1 = ++i;
+            }
+            else if (std::isspace(*i))
+                ++i;
+            else
+            {
+                I i3 = i;
+                if (parse_lit(i, e, d.first))
+                {
+                    tag_result tag(expect_tag(i, e, d, pure, attr, section));
+                    text = boost::string_ref(i0, i1 - i0);
+                    if (tag.check_standalone)
+                    {
+                        I i4 = i;
+                        while (i != e)
+                        {
+                            if (*i == '\n')
+                            {
+                                ++i;
+                                break;
+                            }
+                            else if (std::isspace(*i))
+                                ++i;
+                            else
+                            {
+                                pure = false;
+                                text = boost::string_ref(i0, i2 - i0);
+                                // For end-section, we move the current pos (i)
+                                // since i0 is local to the section and is not
+                                // propagated upwards.
+                                (tag.is_end_section ? i : i0) = i4;
+                                return tag.is_end_section;
+                            }
+                        }
+                        if (auto partial = get<ast::partial>(&attr))
+                            partial->indent.assign(i1, i3 - i1);
+                    }
+                    else if (!tag.is_standalone)
+                        text = boost::string_ref(i0, i2 - i0);
+                    i0 = i;
+                    return i == e || tag.is_end_section;
+                }
+                else
+                {
+                    pure = false;
+                    ++i;
+                }
+            }
+            i2 = i;
+        }
+        text = boost::string_ref(i0, i - i0);
+        return true;
+    }
+
+    template<class I>
+    void parse_contents
+    (
+        I i0, I& i, I e, delim& d, bool& pure,
+        ast::content_list& attr, boost::string_ref const& section
+    )
+    {
+        for (;;)
+        {
+            boost::string_ref text;
+            ast::content a;
+            auto end = parse_content(i0, i, e, d, pure, text, a, section);
+            if (!text.empty())
+                attr.push_back(text);
+            if (!is_null(a))
+                attr.push_back(std::move(a));
+            if (end)
+                return;
+        }
+    }
+
+    template<class I>
+    inline void parse_start(I& i, I e, ast::content_list& attr)
+    {
+        delim d("{{", "}}");
+        bool pure = true;
+        parse_contents(i, i, e, d, pure, attr, {});
+    }
+}}}
 
 namespace bustache
 {
-    format::format(char const* begin, char const* end)
+    static char const* get_error_string(error_type err)
     {
-        x3::phrase_parse(begin, end, parser::start, x3::space, _contents);
+        switch (err)
+        {
+        case error_set_delim:
+            return "format_error(error_set_delim): mismatched '='";
+        case error_baddelim:
+            return "format_error(error_baddelim): invalid delimiter";
+        case error_delim:
+            return "format_error(error_delim): mismatched delimiter";
+        case error_section:
+            return "format_error(error_section): mismatched end section tag";
+        case error_badkey:
+            return "format_error(error_badkey): invalid key";
+        default:
+            return "format_error";
+        }
+    }
+
+    format_error::format_error(error_type err)
+      : runtime_error(get_error_string(err)), _err(err)
+    {}
+
+    void format::init(char const* begin, char const* end)
+    {
+        parser::parse_start(begin, end, _contents);
     }
 
     struct accum_size
     {
-        typedef std::size_t result_type;
+        using result_type = std::size_t;
 
         std::size_t operator()(ast::text const& text) const
         {
@@ -152,7 +385,7 @@ namespace bustache
         {
             std::size_t n = 0;
             for (auto const& content : section.contents)
-                n += boost::apply_visitor(*this, content);
+                n += apply_visitor(*this, content);
             return n;
         }
 
@@ -168,27 +401,28 @@ namespace bustache
         accum_size accum;
         std::size_t n = 0;
         for (auto const& content : _contents)
-            n += boost::apply_visitor(accum, content);
+            n += apply_visitor(accum, content);
         return n;
     }
 
-    struct insert_text
+    struct copy_text_visitor
     {
-        typedef void result_type;
+        using result_type = void;
 
-        std::string& data;
+        char* data;
 
-        void operator()(ast::text& text) const
+        void operator()(ast::text& text)
         {
-            auto n = data.size();
-            data.insert(data.end(), text.begin(), text.end());
-            text = {data.data() + n, text.size()};
+            auto n = text.size();
+            std::memcpy(data, text.data(), n);
+            text = {data, n};
+            data += n;
         }
 
-        void operator()(ast::section& section) const
+        void operator()(ast::section& section)
         {
             for (auto& content : section.contents)
-                boost::apply_visitor(*this, content);
+                apply_visitor(*this, content);
         }
 
         template <typename T>
@@ -197,9 +431,9 @@ namespace bustache
 
     void format::copy_text(std::size_t n)
     {
-        _text.reserve(n);
-        insert_text insert{_text};
+        _text.reset(new char[n]);
+        copy_text_visitor visitor{_text.get()};
         for (auto& content : _contents)
-            boost::apply_visitor(insert, content);
+            apply_visitor(visitor, content);
     }
 }

@@ -10,31 +10,31 @@ int main(int argc, char** argv)
     
     object data
     {
-        {"header", "Colors"}
-      , {"items",
+        {"header", "Colors"},
+        {"items",
             array
             {
                 object
                 {
-                    {"name", "red"}
-                  , {"first", true}
-                  , {"url", "#Red"}
-                }
-              , object
+                    {"name", "red"},
+                    {"first", true},
+                    {"url", "#Red"}
+                },
+                object
                 {
-                    {"name", "green"}
-                  , {"link", true}
-                  , {"url", "#Green"}
-                }
-              , object
+                    {"name", "green"},
+                    {"link", true},
+                    {"url", "#Green"}
+                },
+                object
                 {
-                    {"name", "blue"}
-                  , {"link", true}
-                  , {"url", "#Blue"}
+                    {"name", "blue"},
+                    {"link", true},
+                    {"url", "#Blue"}
                 }
             }
-        }
-      , {"empty", false}
+        },
+        {"empty", false}
     };
 
     std::unordered_map<std::string, bustache::format> context

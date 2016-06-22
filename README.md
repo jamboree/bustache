@@ -1,11 +1,14 @@
 {{ bustache }}
 ========
 
-C++1y implementation of [{{ mustache }}](http://mustache.github.io/)
+C++14 implementation of [{{ mustache }}](http://mustache.github.io/), compliant with [spec](https://github.com/mustache/spec) v1.1.3.
 
 ## Dependencies
-* [Boost](http://www.boost.org/)
-* https://github.com/jamboree/spirit
+* [Boost](http://www.boost.org/) - for `unordered_map`, etc
+
+### Optional Dependencies
+* [Google.Benchmark](https://github.com/google/benchmark) - for benchmark
+* [Catch](https://github.com/philsquared/Catch) - for test
 
 ## Supported Features
 * Variables
@@ -14,40 +17,42 @@ C++1y implementation of [{{ mustache }}](http://mustache.github.io/)
 * Comments
 * Partials
 * Set Delimiter
-* HTML escaping *(configurable)*
-
-## Unsupported Features
 * Lambdas
+* HTML escaping *(configurable)*
 
 ## Basics
 {{ mustache }} is a template language for text-replacing.
-When it comes to formatting, there are 2 essential things -- *Format* and *Data*.
-In {{ bustache }}, we represent the Format as a `bustache::format` object, and `bustache::object` for Data.
-Techincally, you can use your custom Data type, but then you have to write the formatting logic yourself.
+When it comes to formatting, there are 2 essential things -- _Format_ and _Data_.
+{{ mustache }} also allows an extra lookup-context for _Partials_.
+In {{ bustache }}, we represent the _Format_ as a `bustache::format` object, and `bustache::object` for _Data_, and anything that provides interface that is compatible with `Map<std::string, bustache::format>` can be used for _Partials_.
+The _Format_ is orthogonal to the _Data_, so techincally you can use your custom _Data_ type with `bustache::format`, but then you have to write the formatting logic yourself.
 
 ### Quick Example
 ```c++
 bustache::format format{"{{mustache}} templating"};
-bustache::object data{{"mustache", std::string("bustache")}};
+bustache::object data{{"mustache", "bustache"}};
 std::cout << format(data); // should print "bustache templating"
 ```
 
 ## Manual
 
 ### Data Model
-It's basically the JSON Data Model represented in C++. 
+It's basically the JSON Data Model represented in C++.
 
 #### Header
 `#include <bustache/model.hpp>`
 
 #### Synopsis
 ```c++
-struct value;
-struct array = std::vector<value>;
-struct object;
+using array = std::vector<value>;
+using object = boost::unordered_map<std::string, value>;
+using lambda0v = std::function<value()>;
+using lambda0f = std::function<format()>;
+using lambda1v = std::function<value(ast::content_list const&)>;
+using lambda1f = std::function<format(ast::content_list const&)>;
 
 struct value =
-    boost::variant
+    variant
     <
         std::nullptr_t
       , bool
@@ -55,14 +60,15 @@ struct value =
       , double
       , std::string
       , array
-      , boost::recursive_wrapper<object>
+      , lambda0v
+      , lambda0f
+      , lambda1v
+      , lambda1f
+      , object
     >;
-
-struct object = std::unordered_map<std::string, value>;
 ```
 ### Format Object
 `bustache::format` parses in-memory string into AST.
-It's worth noting that `bustache::format` *never* fails, if the input is ill-formed, `bustache::format` just treats them as plain-text.
 
 #### Header
 `#include <bustache/format.hpp>`
@@ -70,52 +76,52 @@ It's worth noting that `bustache::format` *never* fails, if the input is ill-for
 #### Synopsis
 *Constructors*
 ```c++
-// not ownig text
 format(char const* begin, char const* end); // [1]
 
-// not ownig text
-template <std::size_t N>
-format(char const (&source)[N]); // [2]
+template<std::size_t N>
+explicit format(char const (&source)[N]); // [2]
 
-// not ownig text
-template <typename Source>
+template<class Source>
 explicit format(Source const& source); // [3]
 
-// ownig text
 template <typename Source>
 explicit format(Source const&& source); // [4]
 
+explicit format(ast::content_list contents, bool copytext = true); // [5]
 ```
 * `Source` is an object that represents continous memory, like `std::string`, `std::vector<char>` or `boost::iostreams::mapped_file_source` that provides access to raw memory through `source.data()` and `source.size()`.
 * Version 2 allows implicit conversion from literal.
 * Version 1~3 doesn't hold the text, you must ensure the memory referenced is valid and not modified at the use of the format object.
 * Version 4 copies the necessary text into its internal buffer, so there's no lifetime issue.
+* Version 5 takes a `ast::content_list`, if `copytext == true` the text will be copied into the internal buffer.
 
 *Manipulator*
 ```c++
-template <typename Object>
-manipulator<Object, no_context>
-operator()(Object const& data, option_type flag = normal) const;
+template <typename T>
+manipulator<T, no_context>
+operator()(T const& data, option_type flag = normal) const;
 
-template <typename Object, typename Context>
-manipulator<Object, Context>
-operator()(Object const& data, Context const& context, option_type flag = normal) const;
+template <typename T, typename Context>
+manipulator<T, Context>
+operator()(T const& data, Context const& context, option_type flag = normal) const;
 ```
-* `Context` is any associative container `Map<std::string, bustache::format>`, which is referenced by Partials.
+* `Context` is any associative container `Map<std::string, bustache::format>`, which is referenced by _Partials_.
 * `option_type` provides 2 options: `normal` and `escape_html`, if `normal` is chosen, there's no difference between `{{Tag}}` and `{{{Tag}}}`, the text won't be escaped in both cases.
 
 ### Stream-based Output
-This is the most common usage.
+Output directly to the `std::basic_ostream`.
 
 #### Synopsis
 ```c++
-template <typename CharT, typename Traits, typename Context>
-std::basic_ostream<CharT, Traits>&
-operator<<(std::basic_ostream<CharT, Traits>& out, manipulator<object, Context> const& manip);
+template<class CharT, class Traits, class T, class Context,
+    std::enable_if_t<std::is_constructible<value::view, T>::value, bool> = true>
+inline std::basic_ostream<CharT, Traits>&
+operator<<(std::basic_ostream<CharT, Traits>& out, manipulator<T, Context> const& manip)
 ```
+
 #### Example
 ```c++
-// open the template file 
+// open the template file
 boost::iostreams::mapped_file_source file(...);
 // create format from source
 bustache::format format(file);
@@ -125,6 +131,22 @@ bustache::object data{...};
 std::unordered_map<std::string, bustache::format> context{...};
 // output the result
 std::cout << format(data, context, bustache::escape_html);
+```
+Note that you can output anything that constitutes `bustache::value`, not just `bustache::object`.
+
+### String Output
+Generate a `std::string` from a `manipulator`.
+
+#### Synopsis
+```c++
+template<class T, class Context,
+    std::enable_if_t<std::is_constructible<value::view, T>::value, bool> = true>
+inline std::string to_string(manipulator<T, Context> const& manip)
+```
+#### Example
+```c++
+bustache::format format(...);
+std::string txt = to_string(format(data, context, bustache::escape_html));
 ```
 
 ### Generate API
@@ -148,25 +170,42 @@ void generate
 ```
 `Sink` is a polymorphic functor that handles:
 ```c++
-void operator()(char const* it, char const* end) const;
-void operator()(bool data) const;
-void operator()(int data) const;
-void operator()(double data) const;
+void operator()(char const* it, char const* end);
+void operator()(bool data);
+void operator()(int data);
+void operator()(double data);
 ```
-You don't have to worry about HTML-escaping here, it's handled within `generate` depending on the option.
+You don't have to deal with HTML-escaping yourself, it's handled within `generate` depending on the option.
 
-## Inconformance
-* We don't treat `{{{` and `}}}` as special tokens, instead, they're `{{` followed by `{` and `}}` preceded by `}`.
-That means `{{ { Tag } }}` is also valid. If you change the Delimiter to, say, `[` and `]`, then `[{Tag}]` is valid as well.
+## Advance Topics
+### Lambdas
+The lambdas in {{ bustache }} have 4 variants - they're production of 2 param-set x 2 return-type.
+One param-set accepts no params, the other accepts a `bustache::ast::content_list const&`.
+One return-type is `bustache::value`, the other is `bustache::format`.
 
+Note that unlike other implementations, we pass a `bustache::ast::content_list` instead of a raw string.
+A `content_list` is a parsed list of AST nodes, you can make a new `content_list` out of the old one and give it to a `bustache::format`.
+
+
+## Performance
+Compare with 2 other libs - [mstch](https://github.com/no1msd/mstch) and [Kainjow.Mustache](https://github.com/kainjow/Mustache).
+See [benchmark.cpp](test/benchmark.cpp). 
+
+Sample run (VS2015 Update 3, boost 1.60.0, 64-bit release build):
+```
+Benchmark               Time           CPU Iterations
+-----------------------------------------------------
+bustache_usage       6325 ns       6397 ns     112179
+mstch_usage        140822 ns     140795 ns       4986
+kainjow_usage       47354 ns      47420 ns      14475
+```
+Lower is better.
+
+![benchmark](doc/benchmark.png?raw=true)
 
 ## License
 
-    Copyright (c) 2014 Jamboree
+    Copyright (c) 2014-2016 Jamboree
 
     Distributed under the Boost Software License, Version 1.0. (See accompanying
     file LICENSE_1_0.txt or copy at http://www.boost.org/LICENSE_1_0.txt)
-    
-## Similar Projects
-* [plustache](https://github.com/mrtazz/plustache)
-* [Boostache](https://github.com/JeffGarland/liaw2014)
