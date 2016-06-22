@@ -8,6 +8,7 @@
 #define BUSTACHE_DETAIL_VARIANT_HPP_INCLUDED
 
 #include <cassert>
+#include <cstdlib>
 #include <utility>
 #include <type_traits>
 
@@ -25,10 +26,12 @@ namespace bustache { namespace detail
         return *static_cast<T const*>(data);
     }
 
-    [[noreturn]] inline void unreachable() { assert(!"cannot be here"); }
+    [[noreturn]] inline void unreachable() { assert(!"cannot be here"); std::abort(); }
 
     struct ctor_visitor
     {
+        using result_type = void;
+
         void* data;
 
         template<class T>
@@ -46,6 +49,8 @@ namespace bustache { namespace detail
 
     struct dtor_visitor
     {
+        using result_type = void;
+
         template<class T>
         void operator()(T& t) const
         {
@@ -117,19 +122,19 @@ namespace bustache
     template<class T, class Var>
     inline T* get(detail::variant<Var>* var)
     {
-        return var ? static_cast<Var*>(var)->get<T>() : nullptr;
+        return var ? static_cast<Var*>(var)->template get<T>() : nullptr;
     }
 
     template<class T, class Var>
     inline T const* get(detail::variant<Var> const* var)
     {
-        return var ? static_cast<Var const*>(var)->get<T>() : nullptr;
+        return var ? static_cast<Var const*>(var)->template get<T>() : nullptr;
     }
 
     template<class T, class Var>
     inline T const* get(detail::variant_ptr<Var> const& var)
     {
-        return var ? (*var).get<T>() : nullptr;
+        return var ? (*var).template get<T>() : nullptr;
     }
 }
 
@@ -168,12 +173,12 @@ VAR& operator=(T&& other) noexcept(noexcept(VAR(std::forward<T>(other))))       
     return *new(this) VAR(std::forward<T>(other));                              \
 }                                                                               \
 template<class Visitor>                                                         \
-decltype(auto) apply_visitor(Visitor& v)                                        \
+typename Visitor::result_type apply_visitor(Visitor& v)                         \
 {                                                                               \
     return switcher::visit(_which, data(), v);                                  \
 }                                                                               \
 template<class Visitor>                                                         \
-decltype(auto) apply_visitor(Visitor& v) const                                  \
+typename Visitor::result_type apply_visitor(Visitor& v) const                   \
 {                                                                               \
     return switcher::visit(_which, data(), v);                                  \
 }                                                                               \

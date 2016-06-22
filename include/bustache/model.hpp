@@ -291,13 +291,15 @@ namespace bustache { namespace detail
     template<class ContentVisitor>
     struct variable_visitor : value_printer<typename ContentVisitor::sink_type>
     {
+        using base_type = value_printer<typename ContentVisitor::sink_type>;
+        
         ContentVisitor& parent;
 
         variable_visitor(ContentVisitor& parent, bool escaping)
-          : value_printer{parent.sink, escaping}, parent(parent)
+          : base_type{parent.sink, escaping}, parent(parent)
         {}
 
-        using value_printer::operator();
+        using base_type::operator();
 
         void operator()(lambda0f const& data) const
         {
@@ -432,7 +434,7 @@ namespace bustache { namespace detail
             content_scope const& scope, value::pointer cursor,
             Sink const &sink, Context const &context, bool escaping
         )
-          : content_visitor_base{&scope, cursor}
+          : content_visitor_base{&scope, cursor, {}}
           , sink(sink), context(context), needs_indent(), escaping(escaping)
         {}
 
