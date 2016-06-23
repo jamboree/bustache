@@ -31,7 +31,7 @@ namespace bustache { namespace ast
 #ifdef _MSC_VER // Workaround MSVC bug.
         variable() = default;
 
-        variable(std::string key, char tag = '\0')
+        explicit variable(std::string key, char tag = '\0')
           : key(std::move(key)), tag(tag)
         {}
 #endif
@@ -60,14 +60,9 @@ namespace bustache { namespace ast
 
     struct content : detail::variant<content>
     {
-        content() noexcept : _which(0), _0() {}
-
-#define BUSTACHE_AST_CONTENT_CTOR(N, U, D)                                      \
-        content(U val) noexcept : _which(N), _##N(std::move(val)) {}
-        BUSTACHE_AST_CONTENT(BUSTACHE_AST_CONTENT_CTOR,)
-#undef BUSTACHE_AST_CONTENT_CTOR
-
         Zz_BUSTACHE_VARIANT_DECL(content, BUSTACHE_AST_CONTENT, true)
+
+        content() noexcept : _which(0), _0() {}
     };
 #undef BUSTACHE_AST_CONTENT
 

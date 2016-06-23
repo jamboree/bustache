@@ -50,34 +50,18 @@ namespace bustache
         struct view;
         using pointer = detail::variant_ptr<view>;
 
+        Zz_BUSTACHE_VARIANT_DECL(value, BUSTACHE_VALUE, false)
+
         value() noexcept : _which(0), _0() {}
-
-#define BUSTACHE_VALUE_CTOR(N, U, D)                                            \
-        value(U val) noexcept(std::is_nothrow_move_constructible<U>::value)     \
-          : _which(N), _##N(std::move(val)) {}
-        BUSTACHE_VALUE(BUSTACHE_VALUE_CTOR,)
-#undef BUSTACHE_VALUE_CTOR
-
-        value(char const* str): _which(4), _4(str) {}
-
-        template<class F, std::enable_if_t<std::is_constructible<lambda0v, F>::value, bool> = true>
-        value(F&& f) : _which(6), _6(std::forward<F>(f)) {}
-
-        template<class F, std::enable_if_t<std::is_constructible<lambda0f, F>::value, bool> = true>
-        value(F&& f) : _which(7), _7(std::forward<F>(f)) {}
-
-        template<class F, std::enable_if_t<std::is_constructible<lambda1v, F>::value, bool> = true>
-        value(F&& f) : _which(8), _8(std::forward<F>(f)) {}
-
-        template<class F, std::enable_if_t<std::is_constructible<lambda1f, F>::value, bool> = true>
-        value(F&& f) : _which(9), _9(std::forward<F>(f)) {}
 
         pointer get_pointer() const
         {
             return {_which, _storage};
         }
 
-        Zz_BUSTACHE_VARIANT_DECL(value, BUSTACHE_VALUE, false)
+    private:
+        // Need to override for `char const*`, otherwise `bool` will be chosen
+        static std::string match_type(char const*);
     };
 
     struct value::view : detail::variant<view>
@@ -104,7 +88,7 @@ namespace bustache
         template<class T>
         T const* get() const
         {
-            return switcher::is(_which, detail::type<T>{}) ?
+            return switcher::index(detail::type<T>{}) == _which ?
                 static_cast<T const*>(_data) : nullptr;
         }
 
