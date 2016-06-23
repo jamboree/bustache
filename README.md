@@ -1,4 +1,4 @@
-{{ bustache }} [![Try it online][badge.wandbox]](http://melpon.org/wandbox/permlink/yMIlHRiZbB7aoPeP)
+{{ bustache }} [![Try it online][badge.wandbox]](http://melpon.org/wandbox/permlink/DsncQStbVArh6RD1)
 ========
 
 C++14 implementation of [{{ mustache }}](http://mustache.github.io/), compliant with [spec](https://github.com/mustache/spec) v1.1.3.

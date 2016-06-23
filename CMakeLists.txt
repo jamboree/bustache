@@ -10,7 +10,7 @@ project(bustache VERSION 0.1 LANGUAGES CXX)
 if (NOT CMAKE_BUILD_TYPE)
   set(CMAKE_BUILD_TYPE Release CACHE STRING
     "Choose the type of build, options are: None(CMAKE_CXX_FLAGS or CMAKE_C_FLAGS used) Debug Release RelWithDebInfo MinSizeRel.")
-endif ()
+endif()
 
 add_library(bustache
     src/format.cpp
@@ -22,7 +22,9 @@ find_package(Boost REQUIRED)
 # compiling the library, and will be added to consumers' build
 # paths.
 target_include_directories(bustache
-    PUBLIC include ${Boost_INCLUDE_DIR}>
+    PUBLIC
+        include
+        ${Boost_INCLUDE_DIR}
 )
 
 # If we have compiler requirements for this library, list them

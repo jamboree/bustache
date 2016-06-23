@@ -31,7 +31,7 @@ R"(<h1>{{header}}</h1>
 
 [a.b.c] == [#a][#b][c][/b][/a]
 
-<div class=\"comments\">
+<div class="comments">
     <h3>[header]</h3>
     <ul>
         [#comments]
