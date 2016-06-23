@@ -193,7 +193,7 @@ void invalidate()                                                               
     if (valid())                                                                \
     {                                                                           \
         detail::dtor_visitor v;                                                 \
-        apply_visitor(v);                                                       \
+        switcher::visit(_which, data(), v);                                     \
         _which = ~0u;                                                           \
     }                                                                           \
 }                                                                               \
@@ -201,7 +201,7 @@ template<class T>                                                               
 void do_init(T& other)                                                          \
 {                                                                               \
     detail::ctor_visitor v{_storage};                                           \
-    other.apply_visitor(v);                                                     \
+    switcher::visit(other._which, other.data(), v);                             \
 }                                                                               \
 template<class T>                                                               \
 void do_assign(T& other)                                                        \
@@ -209,7 +209,7 @@ void do_assign(T& other)                                                        
     if (_which == other._which)                                                 \
     {                                                                           \
         detail::assign_visitor v{_storage};                                     \
-        other.apply_visitor(v);                                                 \
+        switcher::visit(other._which, other.data(), v);                         \
     }                                                                           \
     else                                                                        \
     {                                                                           \
@@ -279,7 +279,7 @@ VAR(T&& other) noexcept(std::is_nothrow_constructible<U, T>::value)             
     if (valid())                                                                \
     {                                                                           \
         detail::dtor_visitor v;                                                 \
-        apply_visitor(v);                                                       \
+        switcher::visit(_which, data(), v);                                     \
     }                                                                           \
 }                                                                               \
 template<class T, class U = decltype(match_type(std::declval<T>()))>            \

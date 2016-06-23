@@ -6,6 +6,7 @@
 //////////////////////////////////////////////////////////////////////////////*/
 #include <cctype>
 #include <utility>
+#include <cstring>
 #include <bustache/format.hpp>
 
 namespace bustache { namespace parser { namespace

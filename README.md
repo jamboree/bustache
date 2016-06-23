@@ -1,4 +1,4 @@
-{{ bustache }}
+{{ bustache }} [![Try it online][badge.wandbox]](http://melpon.org/wandbox/permlink/VhNlgZISNzWycBRY)
 ========
 
 C++14 implementation of [{{ mustache }}](http://mustache.github.io/), compliant with [spec](https://github.com/mustache/spec) v1.1.3.
@@ -209,3 +209,6 @@ Lower is better.
 
     Distributed under the Boost Software License, Version 1.0. (See accompanying
     file LICENSE_1_0.txt or copy at http://www.boost.org/LICENSE_1_0.txt)
+
+<!-- Links -->
+[badge.Wandbox]: https://img.shields.io/badge/try%20it-online-green.svg
