@@ -35,7 +35,7 @@ R"(<h1>{{header}}</h1>
     <h3>[header]</h3>
     <ul>
         [#comments]
-        <li class=\"comment\">
+        <li class="comment">
             <h5>[name]</h5>
             <p>[body]</p>
         </li>

@@ -1,4 +1,4 @@
-{{ bustache }} [![Try it online][badge.wandbox]](http://melpon.org/wandbox/permlink/6X1uFVhAqa4SsADk)
+{{ bustache }} [![Try it online][badge.wandbox]](http://melpon.org/wandbox/permlink/yMIlHRiZbB7aoPeP)
 ========
 
 C++14 implementation of [{{ mustache }}](http://mustache.github.io/), compliant with [spec](https://github.com/mustache/spec) v1.1.3.
@@ -177,7 +177,7 @@ void operator()(double data);
 ```
 You don't have to deal with HTML-escaping yourself, it's handled within `generate` depending on the option.
 
-## Advance Topics
+## Advanced Topics
 ### Lambdas
 The lambdas in {{ bustache }} have 4 variants - they're production of 2 param-set x 2 return-type.
 One param-set accepts no params, the other accepts a `bustache::ast::content_list const&`.
@@ -186,6 +186,25 @@ One return-type is `bustache::value`, the other is `bustache::format`.
 Note that unlike other implementations, we pass a `bustache::ast::content_list` instead of a raw string.
 A `content_list` is a parsed list of AST nodes, you can make a new `content_list` out of the old one and give it to a `bustache::format`.
 
+### Error Handling
+The constructor of `bustache::format` may throw `bustache::format_error` if the parsing fails.
+```
+class format_error : public std::runtime_error
+{
+public:
+    explicit format_error(error_type err);
+
+    error_type code() const;
+};
+```
+`error_type` has these values:
+* error_set_delim
+* error_baddelim
+* error_delim
+* error_section
+* error_badkey
+
+You can also use `what()` for a descriptive text.
 
 ## Performance
 Compare with 2 other libs - [mstch](https://github.com/no1msd/mstch) and [Kainjow.Mustache](https://github.com/kainjow/Mustache).
