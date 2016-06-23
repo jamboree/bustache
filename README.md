@@ -1,4 +1,4 @@
-{{ bustache }} [![Try it online][badge.wandbox]](http://melpon.org/wandbox/permlink/VhNlgZISNzWycBRY)
+{{ bustache }} [![Try it online][badge.wandbox]](http://melpon.org/wandbox/permlink/6X1uFVhAqa4SsADk)
 ========
 
 C++14 implementation of [{{ mustache }}](http://mustache.github.io/), compliant with [spec](https://github.com/mustache/spec) v1.1.3.
@@ -51,7 +51,7 @@ using lambda0f = std::function<format()>;
 using lambda1v = std::function<value(ast::content_list const&)>;
 using lambda1f = std::function<format(ast::content_list const&)>;
 
-struct value =
+class value =
     variant
     <
         std::nullptr_t

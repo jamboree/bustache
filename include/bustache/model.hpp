@@ -16,7 +16,7 @@
 
 namespace bustache
 {
-    struct value;
+    class value;
 
     using array = std::vector<value>;
 
@@ -45,8 +45,13 @@ namespace bustache
     X(10, object, D)                                                            \
 /***/
 
-    struct value : detail::variant<value>
+    class value : public detail::variant<value>
     {
+        // Need to override for `char const*`, otherwise `bool` will be chosen
+        static std::string match_type(char const*);
+
+    public:
+
         struct view;
         using pointer = detail::variant_ptr<view>;
 
@@ -58,10 +63,6 @@ namespace bustache
         {
             return {_which, _storage};
         }
-
-    private:
-        // Need to override for `char const*`, otherwise `bool` will be chosen
-        static std::string match_type(char const*);
     };
 
     struct value::view : detail::variant<view>
