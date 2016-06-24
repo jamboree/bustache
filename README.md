@@ -1,4 +1,4 @@
-{{ bustache }} [![Try it online][badge.wandbox]](http://melpon.org/wandbox/permlink/DsncQStbVArh6RD1)
+{{ bustache }} [![Try it online][badge.wandbox]](http://melpon.org/wandbox/permlink/8wJtd7grvcNFSoxA)
 ========
 
 C++14 implementation of [{{ mustache }}](http://mustache.github.io/), compliant with [spec](https://github.com/mustache/spec) v1.1.3.
@@ -37,7 +37,7 @@ std::cout << format(data); // should print "bustache templating"
 ## Manual
 
 ### Data Model
-It's basically the JSON Data Model represented in C++.
+It's basically the JSON Data Model represented in C++, with some extensions.
 
 #### Header
 `#include <bustache/model.hpp>`
@@ -113,6 +113,7 @@ Output directly to the `std::basic_ostream`.
 
 #### Synopsis
 ```c++
+// in <bustache/model.hpp>
 template<class CharT, class Traits, class T, class Context,
     std::enable_if_t<std::is_constructible<value::view, T>::value, bool> = true>
 inline std::basic_ostream<CharT, Traits>&
@@ -139,6 +140,7 @@ Generate a `std::string` from a `manipulator`.
 
 #### Synopsis
 ```c++
+// in <bustache/model.hpp>
 template<class T, class Context,
     std::enable_if_t<std::is_constructible<value::view, T>::value, bool> = true>
 inline std::string to_string(manipulator<T, Context> const& manip)
@@ -151,20 +153,22 @@ std::string txt = to_string(format(data, context, bustache::escape_html));
 
 ### Generate API
 `generate` can be used for customized output.
-In fact, the stream-based output is built on `generate`.
+
+#### Header
+`#include <bustache/generate.hpp>`
 
 ```c++
 template <typename Sink>
 void generate
 (
-    format const& fmt, object const& data, Sink const& sink
+    format const& fmt, value::view const& data, Sink const& sink
   , option_type flag = normal
 );
 
 template <typename Context, typename Sink>
 void generate
 (
-    format const& fmt, object const& data, Context const& context
+    format const& fmt, value::view const& data, Context const& context
   , Sink const& sink, option_type flag = normal
 );
 ```
@@ -176,6 +180,35 @@ void operator()(int data);
 void operator()(double data);
 ```
 You don't have to deal with HTML-escaping yourself, it's handled within `generate` depending on the option.
+
+### Predefined Generators
+These are predefined output built on `generate`.
+
+#### Header
+* `#include <bustache/generate/ostream.hpp>`
+* `#include <bustache/generate/string.hpp>`
+
+```c++
+template<class CharT, class Traits, class Context>
+void generate_ostream
+(
+    std::basic_ostream<CharT, Traits>& out, format const& fmt,
+    value::view const& data, Context const& context, option_type flag
+);
+
+template<class String, class Context>
+void generate_string
+(
+    String& out, format const& fmt,
+    value::view const& data, Context const& context, option_type flag
+);
+```
+
+#### Note
+The stream-based output and string output are built on these functions,
+but `<bustache/model.hpp>` doesn't include these headers and only supports `char` output,
+if you need other char-type support for stream/string output, you have to include these headers as well.
+
 
 ## Advanced Topics
 ### Lambdas

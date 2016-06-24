@@ -7,7 +7,7 @@
 #ifndef BUSTACHE_AST_HPP_INCLUDED
 #define BUSTACHE_AST_HPP_INCLUDED
 
-#include "detail/variant.hpp"
+#include <bustache/detail/variant.hpp>
 #include <boost/utility/string_ref.hpp>
 #include <vector>
 #include <string>

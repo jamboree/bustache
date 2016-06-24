@@ -7,7 +7,7 @@
 #ifndef BUSTACHE_FORMAT_HPP_INCLUDED
 #define BUSTACHE_FORMAT_HPP_INCLUDED
 
-#include "ast.hpp"
+#include <bustache/ast.hpp>
 #include <stdexcept>
 #include <memory>
 
@@ -30,7 +30,7 @@ namespace bustache
 
     struct no_context
     {
-        using value_type = std::pair<std::string, format>;
+        using value_type = std::pair<std::string const, format>;
         using iterator = value_type const*;
         
         constexpr iterator find(std::string const&) const
