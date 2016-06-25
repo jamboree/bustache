@@ -386,7 +386,7 @@ namespace bustache
         {
             std::size_t n = 0;
             for (auto const& content : section.contents)
-                n += apply_visitor(*this, content);
+                n += visit(*this, content);
             return n;
         }
 
@@ -402,7 +402,7 @@ namespace bustache
         accum_size accum;
         std::size_t n = 0;
         for (auto const& content : _contents)
-            n += apply_visitor(accum, content);
+            n += visit(accum, content);
         return n;
     }
 
@@ -423,7 +423,7 @@ namespace bustache
         void operator()(ast::section& section)
         {
             for (auto& content : section.contents)
-                apply_visitor(*this, content);
+                visit(*this, content);
         }
 
         template <typename T>
@@ -435,6 +435,6 @@ namespace bustache
         _text.reset(new char[n]);
         copy_text_visitor visitor{_text.get()};
         for (auto& content : _contents)
-            apply_visitor(visitor, content);
+            visit(visitor, content);
     }
 }

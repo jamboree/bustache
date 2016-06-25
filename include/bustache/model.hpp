@@ -45,7 +45,7 @@ namespace bustache
     X(10, object, D)                                                            \
 /***/
 
-    class value : public detail::variant<value>
+    class value : public variant_base<value>
     {
         // Need to override for `char const*`, otherwise `bool` will be chosen
         static std::string match_type(char const*);
@@ -53,7 +53,7 @@ namespace bustache
     public:
 
         struct view;
-        using pointer = detail::variant_ptr<view>;
+        using pointer = variant_ptr<view>;
 
         Zz_BUSTACHE_VARIANT_DECL(value, BUSTACHE_VALUE, false)
 
@@ -65,8 +65,10 @@ namespace bustache
         }
     };
 
-    struct value::view : detail::variant<view>
+    struct value::view : variant_base<view>
     {
+        using switcher = value::switcher;
+
 #define BUSTACHE_VALUE_VIEW_CTOR(N, U, D)                                       \
         view(U const& data) noexcept : _which(N), _data(&data) {}
         BUSTACHE_VALUE(BUSTACHE_VALUE_VIEW_CTOR,)
@@ -80,17 +82,14 @@ namespace bustache
           : _which(which), _data(data)
         {}
 
-        template<class Visitor>
-        decltype(auto) apply_visitor(Visitor& v) const
+        unsigned which() const
         {
-            return switcher::visit(_which, _data, v);
+            return _which;
         }
 
-        template<class T>
-        T const* get() const
+        void const* data() const
         {
-            return switcher::index(detail::type<T>{}) == _which ?
-                static_cast<T const*>(_data) : nullptr;
+            return _data;
         }
 
         pointer get_pointer() const

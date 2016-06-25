@@ -58,7 +58,7 @@ namespace bustache { namespace ast
     X(4, partial, D)                                                            \
 /***/
 
-    struct content : detail::variant<content>
+    struct content : variant_base<content>
     {
         Zz_BUSTACHE_VARIANT_DECL(content, BUSTACHE_AST_CONTENT, true)
 

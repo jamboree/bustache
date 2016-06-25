@@ -49,11 +49,11 @@ namespace bustache { namespace detail
             auto it = data.begin(), end = data.end();
             if (it != end)
             {
-                apply_visitor(*this, *it);
+                visit(*this, *it);
                 while (++it != end)
                 {
                     literal(",");
-                    apply_visitor(*this, *it);
+                    visit(*this, *it);
                 }
             }
         }
@@ -65,12 +65,12 @@ namespace bustache { namespace detail
 
         void operator()(lambda0v const& data) const
         {
-            apply_visitor(*this, data());
+            visit(*this, data());
         }
 
         void operator()(lambda1v const& data) const
         {
-            apply_visitor(*this, data({}));
+            visit(*this, data({}));
         }
 
         template<class Sig>
@@ -149,7 +149,7 @@ namespace bustache { namespace detail
         {
             auto fmt(data());
             for (auto const& content : fmt.contents())
-                apply_visitor(parent, content);
+                visit(parent, content);
         }
     };
 
@@ -170,7 +170,7 @@ namespace bustache { namespace detail
                 auto old_scope = parent.scope;
                 parent.scope = &scope;
                 for (auto const& content : contents)
-                    apply_visitor(parent, content);
+                    visit(parent, content);
                 parent.scope = old_scope;
             }
             return false;
@@ -190,13 +190,13 @@ namespace bustache { namespace detail
                     auto old_scope = parent.scope;
                     parent.scope = &scope;
                     for (auto const& content : contents)
-                        apply_visitor(parent, content);
+                        visit(parent, content);
                     parent.scope = old_scope;
                 }
                 else
                 {
                     for (auto const& content : contents)
-                        apply_visitor(parent, content);
+                        visit(parent, content);
                 }
             }
             return false;
@@ -231,7 +231,7 @@ namespace bustache { namespace detail
 
         bool operator()(lambda0v const& data) const
         {
-            return inverted ? false : apply_visitor(*this, data());
+            return inverted ? false : visit(*this, data());
         }
 
         bool operator()(lambda0f const& data) const
@@ -240,14 +240,14 @@ namespace bustache { namespace detail
             {
                 auto fmt(data());
                 for (auto const& content : fmt.contents())
-                    apply_visitor(parent, content);
+                    visit(parent, content);
             }
             return false;
         }
 
         bool operator()(lambda1v const& data) const
         {
-            return inverted ? false : apply_visitor(*this, data(contents));
+            return inverted ? false : visit(*this, data(contents));
         }
 
         bool operator()(lambda1f const& data) const
@@ -256,7 +256,7 @@ namespace bustache { namespace detail
             {
                 auto fmt(data(contents));
                 for (auto const& content : fmt.contents())
-                    apply_visitor(parent, content);
+                    visit(parent, content);
             }
             return false;
         }
@@ -324,7 +324,7 @@ namespace bustache { namespace detail
                 {
                     *this, escaping && !variable.tag
                 };
-                apply_visitor(visitor, *pv);
+                visit(visitor, *pv);
             }
         }
         
@@ -339,7 +339,7 @@ namespace bustache { namespace detail
                 {
                     *this, section.contents, inverted
                 };
-                if (!apply_visitor(visitor, *cursor))
+                if (!visit(visitor, *cursor))
                 {
                     cursor = old_cursor;
                     return;
@@ -349,7 +349,7 @@ namespace bustache { namespace detail
                 return;
                 
             for (auto const& content : section.contents)
-                apply_visitor(*this, content);
+                visit(*this, content);
             cursor = old_cursor;
         }
         
@@ -366,7 +366,7 @@ namespace bustache { namespace detail
                 indent += partial.indent;
                 needs_indent = !indent.empty();
                 for (auto const& content : it->second.contents())
-                    apply_visitor(*this, content);
+                    visit(*this, content);
                 needs_indent = old_needs_indent;
                 indent.resize(old_size);
             }
@@ -400,7 +400,7 @@ namespace bustache
         detail::content_scope scope{nullptr, obj ? *obj : empty};
         detail::content_visitor<Sink, Context> visitor{scope, data.get_pointer(), sink, context, flag};
         for (auto const& content : fmt.contents())
-            apply_visitor(visitor, content);
+            visit(visitor, content);
     }
 }
 

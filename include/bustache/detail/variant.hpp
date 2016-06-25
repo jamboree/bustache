@@ -10,6 +10,7 @@
 #include <cassert>
 #include <cstdlib>
 #include <utility>
+#include <stdexcept>
 #include <type_traits>
 
 namespace bustache { namespace detail
@@ -25,6 +26,14 @@ namespace bustache { namespace detail
     {
         return *static_cast<T const*>(data);
     }
+
+    template<class T, class U>
+    struct noexcept_ctor_assign
+    {
+        static constexpr bool value =
+            std::is_nothrow_constructible<T, U>::value &&
+            std::is_nothrow_assignable<T, U>::value;
+    };
 
     struct ctor_visitor
     {
@@ -75,23 +84,14 @@ namespace bustache { namespace detail
         }
     };
 
-    //template<class T>
-    //struct get_visitor
-    //{
-    //    T* operator()(T& t) const
-    //    {
-    //        return &t;
-    //    }
-
-    //    template<class U>
-    //    T* operator()(U&) const
-    //    {
-    //        return nullptr;
-    //    }
-    //};
-
     template<class T>
-    struct variant {};
+    struct type {};
+}}
+
+namespace bustache
+{
+    template<class T>
+    struct variant_base {};
 
     template<class View>
     struct variant_ptr
@@ -100,7 +100,9 @@ namespace bustache { namespace detail
 
         variant_ptr(std::nullptr_t) noexcept : _data() {}
 
-        variant_ptr(unsigned which, void const* data) noexcept : _which(which), _data(data) {}
+        variant_ptr(unsigned which, void const* data) noexcept
+            : _which(which), _data(data)
+        {}
 
         explicit operator bool() const
         {
@@ -109,7 +111,17 @@ namespace bustache { namespace detail
 
         View operator*() const
         {
-            return {_which, _data};
+            return{_which, _data};
+        }
+
+        unsigned which() const
+        {
+            return _which;
+        }
+
+        void const* data() const
+        {
+            return _data;
         }
 
     private:
@@ -118,40 +130,82 @@ namespace bustache { namespace detail
         void const* _data;
     };
 
-    template<class T>
-    struct type {};
-}}
+    class bad_variant_access : public std::exception
+    {
+    public:
+        bad_variant_access() noexcept {}
 
-namespace bustache
-{
+        const char* what() const noexcept override
+        {
+            return "bustache::bad_variant_access";
+        }
+    };
+
     template<class Var, class Visitor>
-    inline decltype(auto) apply_visitor(Visitor&& v, detail::variant<Var>& var)
+    inline decltype(auto) visit(Visitor&& visitor, variant_base<Var>& v)
     {
-        return static_cast<Var&>(var).apply_visitor(v);
+        auto& var = static_cast<Var&>(v);
+        return Var::switcher::visit(var.which(), var.data(), visitor);
     }
 
     template<class Var, class Visitor>
-    inline decltype(auto) apply_visitor(Visitor&& v, detail::variant<Var> const& var)
+    inline decltype(auto) visit(Visitor&& visitor, variant_base<Var> const& v)
     {
-        return static_cast<Var const&>(var).apply_visitor(v);
+        auto& var = static_cast<Var const&>(v);
+        return Var::switcher::visit(var.which(), var.data(), visitor);
     }
 
     template<class T, class Var>
-    inline T* get(detail::variant<Var>* var)
+    inline T& get(variant_base<Var>& v)
     {
-        return var ? static_cast<Var*>(var)->template get<T>() : nullptr;
+        auto& var = static_cast<Var&>(v);
+        if (Var::switcher::index(detail::type<T>{}) == var.which())
+            return *static_cast<T*>(var.data());
+        throw bad_variant_access();
     }
 
     template<class T, class Var>
-    inline T const* get(detail::variant<Var> const* var)
+    inline T const& get(variant_base<Var> const& v)
     {
-        return var ? static_cast<Var const*>(var)->template get<T>() : nullptr;
+        auto& var = static_cast<Var const&>(v);
+        if (Var::switcher::index(detail::type<T>{}) == var.which())
+            return *static_cast<T const*>(var.data());
+        throw bad_variant_access();
     }
 
     template<class T, class Var>
-    inline T const* get(detail::variant_ptr<Var> const& var)
+    inline T* get(variant_base<Var>* vp)
     {
-        return var ? (*var).template get<T>() : nullptr;
+        if (vp)
+        {
+            auto v = static_cast<Var*>(vp);
+            if (Var::switcher::index(detail::type<T>{}) == v->which())
+                return static_cast<T*>(v->data());
+        }
+        return nullptr;
+    }
+
+    template<class T, class Var>
+    inline T const* get(variant_base<Var> const* vp)
+    {
+        if (vp)
+        {
+            auto v = static_cast<Var const*>(vp);
+            if (Var::switcher::index(detail::type<T>{}) == v->which())
+                return static_cast<T const*>(v->data());
+        }
+        return nullptr;
+    }
+
+    template<class T, class Var>
+    inline T const* get(variant_ptr<Var> const& vp)
+    {
+        if (vp)
+        {
+            if (Var::switcher::index(detail::type<T>{}) == vp.which())
+                return static_cast<T const*>(vp.data());
+        }
+        return nullptr;
     }
 }
 
@@ -167,7 +221,6 @@ static constexpr unsigned index(detail::type<U>) { return N; }                  
 /***/
 #define Zz_BUSTACHE_VARIANT_MATCH(N, U, D) static U match_type(U);
 #define Zz_BUSTACHE_VARIANT_DECL(VAR, TYPES, NOEXCPET)                          \
-private:                                                                        \
 struct switcher                                                                 \
 {                                                                               \
     template<class T, class Visitor>                                            \
@@ -176,11 +229,12 @@ struct switcher                                                                 
         switch (which)                                                          \
         {                                                                       \
         TYPES(Zz_BUSTACHE_VARIANT_SWITCH,)                                      \
-        default: Zz_BUSTACHE_UNREACHABLE("cannot be here");                     \
+        default: throw bad_variant_access();                                    \
         }                                                                       \
     }                                                                           \
     TYPES(Zz_BUSTACHE_VARIANT_INDEX,)                                           \
 };                                                                              \
+private:                                                                        \
 TYPES(Zz_BUSTACHE_VARIANT_MATCH,)                                               \
 unsigned _which;                                                                \
 union                                                                           \
@@ -238,28 +292,6 @@ void const* data() const                                                        
 {                                                                               \
     return _storage;                                                            \
 }                                                                               \
-template<class Visitor>                                                         \
-decltype(auto) apply_visitor(Visitor& v)                                        \
-{                                                                               \
-    return switcher::visit(_which, data(), v);                                  \
-}                                                                               \
-template<class Visitor>                                                         \
-decltype(auto) apply_visitor(Visitor& v) const                                  \
-{                                                                               \
-    return switcher::visit(_which, data(), v);                                  \
-}                                                                               \
-template<class T>                                                               \
-T* get()                                                                        \
-{                                                                               \
-    return switcher::index(detail::type<T>{}) == _which ?                       \
-        static_cast<T*>(data()) : nullptr;                                      \
-}                                                                               \
-template<class T>                                                               \
-T const* get() const                                                            \
-{                                                                               \
-    return switcher::index(detail::type<T>{}) == _which ?                       \
-        static_cast<T const*>(data()) : nullptr;                                \
-}                                                                               \
 VAR(VAR&& other) noexcept(NOEXCPET) : _which(other._which)                      \
 {                                                                               \
     do_init(other);                                                             \
@@ -283,14 +315,14 @@ VAR(T&& other) noexcept(std::is_nothrow_constructible<U, T>::value)             
     }                                                                           \
 }                                                                               \
 template<class T, class U = decltype(match_type(std::declval<T>()))>            \
-U& operator=(T&& other) noexcept(std::is_nothrow_constructible<U, T>::value)    \
+U& operator=(T&& other) noexcept(detail::noexcept_ctor_assign<U, T>::value)     \
 {                                                                               \
-    if (auto p = get<U>())                                                      \
-        return *p = std::forward<T>(other);                                     \
+    if (switcher::index(detail::type<U>{}) == _which)                           \
+        return *static_cast<U*>(data()) = std::forward<T>(other);               \
     else                                                                        \
     {                                                                           \
         invalidate();                                                           \
-        p = new(_storage) U(std::forward<T>(other));                            \
+        auto p = new(_storage) U(std::forward<T>(other));                       \
         _which = switcher::index(detail::type<U>{});                            \
         return *p;                                                              \
     }                                                                           \

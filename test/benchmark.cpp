@@ -166,7 +166,7 @@ static void mstch_usage(benchmark::State& state)
                 },
                 map
                 {
-                    {"name", "Sam"},
+                    {"name", "Sam"s},
                     {"body", "{{mustache}} can be seen"s}
                 },
                 map

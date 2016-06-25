@@ -1,15 +1,19 @@
 find_package(Catch REQUIRED)
 
-add_executable(specs
-    specs.cpp
-)
+add_library(Catch INTERFACE)
+target_include_directories(Catch INTERFACE ${CATCH_INCLUDE_DIR})
 
-target_include_directories(specs
-    PRIVATE ${CATCH_INCLUDE_DIR}
-)
+function(add_catch_test name)
+    set(TEST_TARGET test_${name})
+    add_executable(${TEST_TARGET}
+        ${name}.cpp
+    )
+    target_link_libraries(${TEST_TARGET}
+        ${PROJECT_NAME} Catch
+    )
+    add_test(${TEST_TARGET} ${TEST_TARGET})
+endfunction()
 
-target_link_libraries(specs
-    ${PROJECT_NAME}
-)
+add_catch_test(specs)
 
-add_test(test_specs specs)
+add_catch_test(variant)
