@@ -381,18 +381,18 @@ namespace bustache
     template<class Sink>
     inline void generate
     (
-        format const& fmt, value::view const& data, Sink const& sink,
+        Sink& sink, format const& fmt, value::view const& data,
         option_type flag = normal
     )
     {
-        generate(fmt, data, no_context::dummy(), sink, flag);
+        generate(sink, fmt, data, no_context::dummy(), flag);
     }
     
-    template<class Context, class Sink>
+    template<class Sink, class Context>
     void generate
     (
-        format const& fmt, value::view const& data, Context const& context,
-        Sink const& sink, option_type flag = normal
+        Sink& sink, format const& fmt, value::view const& data,
+        Context const& context, option_type flag = normal
     )
     {
         object const empty;

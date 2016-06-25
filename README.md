@@ -1,4 +1,4 @@
-{{ bustache }} [![Try it online][badge.wandbox]](http://melpon.org/wandbox/permlink/8wJtd7grvcNFSoxA)
+{{ bustache }} [![Try it online][badge.wandbox]](http://melpon.org/wandbox/permlink/zjOfJD7OijU7VORf)
 ========
 
 C++14 implementation of [{{ mustache }}](http://mustache.github.io/), compliant with [spec](https://github.com/mustache/spec) v1.1.3.
@@ -158,18 +158,18 @@ std::string txt = to_string(format(data, context, bustache::escape_html));
 `#include <bustache/generate.hpp>`
 
 ```c++
-template <typename Sink>
-void generate
+template<class Sink>
+inline void generate
 (
-    format const& fmt, value::view const& data, Sink const& sink
-  , option_type flag = normal
+    Sink& sink, format const& fmt, value::view const& data,
+    option_type flag = normal
 );
 
-template <typename Context, typename Sink>
+template<class Sink, class Context>
 void generate
 (
-    format const& fmt, value::view const& data, Context const& context
-  , Sink const& sink, option_type flag = normal
+    Sink& sink, format const& fmt, value::view const& data,
+    Context const& context, option_type flag = normal
 );
 ```
 `Sink` is a polymorphic functor that handles:

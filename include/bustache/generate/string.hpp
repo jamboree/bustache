@@ -93,7 +93,7 @@ namespace bustache
     )
     {
         detail::string_sink<String> sink{out};
-        generate(fmt, data, context, sink, flag);
+        generate(sink, fmt, data, context, flag);
     }
 
     // This is instantiated in src/generate.cpp.
