@@ -5,7 +5,7 @@ list(APPEND CMAKE_MODULE_PATH "${CMAKE_SOURCE_DIR}/cmake/Modules/")
 
 project(bustache VERSION 1.0.0 LANGUAGES CXX)
 
-option(BUSTACHE_ENABLE_TESTING "Enable testing of the bustache library." ON)
+option(BUSTACHE_ENABLE_TESTING "Enable testing of the bustache library." OFF)
 
 # Set the default CMAKE_BUILD_TYPE to Release.
 # This should be done before the project command since the latter can set

@@ -131,37 +131,35 @@ namespace bustache { namespace parser { namespace
         }
         if (i == e)
             throw format_error(error_baddelim);
-        delim d2;
-        d2.first.assign(i0, i);
+        d.first.assign(i0, i);
         skip(i, e);
         i0 = i;
         I i1 = i;
-        bool bailout = false;
-        while (i != e)
+        for (;; ++i)
         {
+            if (i == e)
+                throw format_error(error_set_delim);
             if (*i == '=')
             {
-                if (i0 == i1)
-                    throw format_error(error_baddelim);
-                d2.second.assign(i0, i1);
-                skip(++i, e);
-                if (!parse_lit(i, e, d.second))
-                    throw format_error(error_delim);
-                d = std::move(d2);
-                return;
-            }
-            if (bailout)
+                i1 = i;
                 break;
+            }
             if (std::isspace(*i))
             {
                 i1 = i;
                 skip(++i, e);
-                bailout = true;
+                if (i == e || *i != '=')
+                    throw format_error(error_set_delim);
+                break;
             }
-            else
-                i1 = ++i;
         }
-        throw format_error(error_set_delim);
+        if (i0 == i1)
+            throw format_error(error_baddelim);
+        std::string new_close(i0, i1);
+        skip(++i, e);
+        if (!parse_lit(i, e, d.second))
+            throw format_error(error_delim);
+        d.second = std::move(new_close);
     }
 
     struct tag_result
@@ -252,9 +250,7 @@ namespace bustache { namespace parser { namespace
         boost::string_ref const& section
     )
     {
-        I i1 = i;
-        I i2 = i;
-        while (i != e)
+        for (I i1 = i; i != e;)
         {
             if (*i == '\n')
             {
@@ -265,14 +261,14 @@ namespace bustache { namespace parser { namespace
                 ++i;
             else
             {
-                I i3 = i;
+                I i2 = i;
                 if (parse_lit(i, e, d.first))
                 {
                     tag_result tag(expect_tag(i, e, d, pure, attr, section));
                     text = boost::string_ref(i0, i1 - i0);
                     if (tag.check_standalone)
                     {
-                        I i4 = i;
+                        I i3 = i;
                         while (i != e)
                         {
                             if (*i == '\n')
@@ -289,12 +285,12 @@ namespace bustache { namespace parser { namespace
                                 // For end-section, we move the current pos (i)
                                 // since i0 is local to the section and is not
                                 // propagated upwards.
-                                (tag.is_end_section ? i : i0) = i4;
+                                (tag.is_end_section ? i : i0) = i3;
                                 return tag.is_end_section;
                             }
                         }
                         if (auto partial = get<ast::partial>(&attr))
-                            partial->indent.assign(i1, i3 - i1);
+                            partial->indent.assign(i1, i2 - i1);
                     }
                     else if (!tag.is_standalone)
                         text = boost::string_ref(i0, i2 - i0);
@@ -307,7 +303,6 @@ namespace bustache { namespace parser { namespace
                     ++i;
                 }
             }
-            i2 = i;
         }
         text = boost::string_ref(i0, i - i0);
         return true;
