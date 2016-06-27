@@ -9,6 +9,7 @@
 
 #include <bustache/detail/variant.hpp>
 #include <boost/utility/string_ref.hpp>
+#include <boost/unordered_map.hpp>
 #include <vector>
 #include <string>
 
@@ -21,6 +22,8 @@ namespace bustache { namespace ast
     using text = boost::string_ref;
 
     using content_list = std::vector<content>;
+
+    using override_map = boost::unordered_map<std::string, content_list>;
 
     struct null {};
 
@@ -37,10 +40,14 @@ namespace bustache { namespace ast
 #endif
     };
 
-    struct section
+    struct block
     {
         std::string key;
         content_list contents;
+    };
+
+    struct section : block
+    {
         char tag = '#';
     };
 
@@ -48,6 +55,8 @@ namespace bustache { namespace ast
     {
         std::string key;
         std::string indent;
+        std::string suffix;
+        override_map overriders;
     };
 
 #define BUSTACHE_AST_CONTENT(X, D)                                              \
@@ -56,6 +65,7 @@ namespace bustache { namespace ast
     X(2, variable, D)                                                           \
     X(3, section, D)                                                            \
     X(4, partial, D)                                                            \
+    X(5, block, D)                                                              \
 /***/
 
     struct content : variant_base<content>

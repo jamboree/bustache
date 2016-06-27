@@ -80,9 +80,8 @@ namespace bustache { namespace parser { namespace
     );
 
     template<class I>
-    inline bool expect_section(I& i, I e, delim& d, bool& pure, ast::section& attr)
+    I process_pure(I& i, I e, bool& pure)
     {
-        expect_key(i, e, d, attr.key, false);
         I i0 = i;
         if (pure)
         {
@@ -102,8 +101,34 @@ namespace bustache { namespace parser { namespace
                 }
             }
         }
+        return i0;
+    }
+
+    template<class I>
+    inline bool expect_block(I& i, I e, delim& d, bool& pure, ast::block& attr)
+    {
+        expect_key(i, e, d, attr.key, false);
+        I i0 = process_pure(i, e, pure);
         bool standalone = pure;
         parse_contents(i0, i, e, d, pure, attr.contents, attr.key);
+        return standalone;
+    }
+
+    template<class I>
+    bool expect_inheritance(I& i, I e, delim& d, bool& pure, ast::partial& attr)
+    {
+        expect_key(i, e, d, attr.key, false);
+        I i0 = process_pure(i, e, pure);
+        bool standalone = pure;
+        for (boost::string_ref text;;)
+        {
+            ast::content a;
+            auto end = parse_content(i0, i, e, d, pure, text, a, attr.key);
+            if (auto p = get<ast::block>(&a))
+                attr.overriders.emplace(std::move(p->key), std::move(p->contents));
+            if (end)
+                break;
+        }
         return standalone;
     }
 
@@ -187,7 +212,7 @@ namespace bustache { namespace parser { namespace
         {
             ast::section a;
             a.tag = *i;
-            ret.is_standalone = expect_section(++i, e, d, pure, a);
+            ret.is_standalone = expect_block(++i, e, d, pure, a);
             attr = std::move(a);
             return ret;
         }
@@ -230,6 +255,21 @@ namespace bustache { namespace parser { namespace
             attr = std::move(a);
             pure = false;
             break;
+        }
+        // Extensions
+        case '<':
+        {
+            ast::partial a;
+            ret.is_standalone = expect_inheritance(++i, e, d, pure, a);
+            attr = std::move(a);
+            return ret;
+        }
+        case '$':
+        {
+            ast::block a;
+            ret.is_standalone = expect_block(++i, e, d, pure, a);
+            attr = std::move(a);
+            return ret;
         }
         default:
             ast::variable a;
@@ -289,11 +329,12 @@ namespace bustache { namespace parser { namespace
                                 return tag.is_end_section;
                             }
                         }
-                        if (auto partial = get<ast::partial>(&attr))
-                            partial->indent.assign(i1, i2 - i1);
+                        tag.is_standalone = true;
                     }
-                    else if (!tag.is_standalone)
+                    if (!tag.is_standalone)
                         text = boost::string_ref(i0, i2 - i0);
+                    else if (auto partial = get<ast::partial>(&attr))
+                        partial->indent.assign(i1, i2 - i1);
                     i0 = i;
                     return i == e || tag.is_end_section;
                 }

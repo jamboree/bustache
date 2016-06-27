@@ -126,10 +126,22 @@ namespace bustache { namespace detail
 
         content_scope const* scope;
         value::pointer cursor;
+        std::vector<ast::override_map const*> chain;
         mutable std::string key_cache;
 
         // Defined in src/generate.cpp.
         value::pointer resolve(std::string const& key) const;
+
+        ast::content_list const* find_override(std::string const& key) const
+        {
+            for (auto pm : chain)
+            {
+                auto it = pm->find(key);
+                if (it != pm->end())
+                    return &it->second;
+            }
+            return nullptr;
+        }
     };
 
     template<class ContentVisitor>
@@ -362,16 +374,27 @@ namespace bustache { namespace detail
                     return;
 
                 auto old_size = indent.size();
-                auto old_needs_indent = needs_indent;
+                auto old_chain = chain.size();
                 indent += partial.indent;
-                needs_indent = !indent.empty();
+                needs_indent |= !partial.indent.empty();
+                if (!partial.overriders.empty())
+                    chain.push_back(&partial.overriders);
                 for (auto const& content : it->second.contents())
                     visit(*this, content);
-                needs_indent = old_needs_indent;
+                chain.resize(old_chain);
                 indent.resize(old_size);
             }
         }
-        
+
+        void operator()(ast::block const& block)
+        {
+            auto pc = find_override(block.key);
+            if (!pc)
+                pc = &block.contents;
+            for (auto const& content : *pc)
+                visit(*this, content);
+        }
+
         void operator()(ast::null) const {} // never called
     };
 }}
