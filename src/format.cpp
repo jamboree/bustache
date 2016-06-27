@@ -73,6 +73,14 @@ namespace bustache { namespace parser { namespace
     }
 
     template<class I>
+    bool parse_content
+    (
+        I& i0, I& i, I e, delim& d, bool& pure,
+        boost::string_ref& text, ast::content& attr,
+        boost::string_ref const& section
+    );
+
+    template<class I>
     void parse_contents
     (
         I i0, I& i, I e, delim& d, bool& pure,

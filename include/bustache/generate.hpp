@@ -290,7 +290,7 @@ namespace bustache { namespace detail
             content_scope const& scope, value::pointer cursor,
             Sink const &sink, Context const &context, bool escaping
         )
-          : content_visitor_base{&scope, cursor, {}}
+          : content_visitor_base{&scope, cursor, {}, {}}
           , sink(sink), context(context), needs_indent(), escaping(escaping)
         {}
 

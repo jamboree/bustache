@@ -55,7 +55,6 @@ namespace bustache { namespace ast
     {
         std::string key;
         std::string indent;
-        std::string suffix;
         override_map overriders;
     };
 
