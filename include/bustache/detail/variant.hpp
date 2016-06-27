@@ -141,18 +141,31 @@ namespace bustache
         }
     };
 
-    template<class Var, class Visitor>
+    template<class Visitor, class Var>
     inline decltype(auto) visit(Visitor&& visitor, variant_base<Var>& v)
     {
         auto& var = static_cast<Var&>(v);
         return Var::switcher::visit(var.which(), var.data(), visitor);
     }
 
-    template<class Var, class Visitor>
+    template<class Visitor, class Var>
     inline decltype(auto) visit(Visitor&& visitor, variant_base<Var> const& v)
     {
         auto& var = static_cast<Var const&>(v);
         return Var::switcher::visit(var.which(), var.data(), visitor);
+    }
+
+    // Synomym of visit (for Boost.Variant compatibility)
+    template<class Visitor, class Var>
+    inline decltype(auto) apply_visitor(Visitor&& visitor, variant_base<Var>& v)
+    {
+        return visit(std::forward<Visitor>(visitor), v);
+    }
+
+    template<class Visitor, class Var>
+    inline decltype(auto) apply_visitor(Visitor&& visitor, variant_base<Var> const& v)
+    {
+        return visit(std::forward<Visitor>(visitor), v);
     }
 
     template<class T, class Var>
@@ -212,6 +225,14 @@ namespace bustache
 
 #define Zz_BUSTACHE_UNREACHABLE(MSG) { assert(!MSG); std::abort(); }
 #define Zz_BUSTACHE_VARIANT_SWITCH(N, U, D) case N: return v(detail::cast<U>(data));
+#if 0 // Common type deduction, not used for now
+#define Zz_BUSTACHE_VARIANT_RET(N, U, D) true ? v(detail::cast<U>(data)) :
+    // Put this into switcher before visit
+    template<class T, class Visitor>                                            \
+    static auto common_ret(T* data, Visitor& v) ->                              \
+        decltype(TYPES(Zz_BUSTACHE_VARIANT_RET,) throw bad_variant_access());   \
+    /***/
+#endif
 #define Zz_BUSTACHE_VARIANT_MEMBER(N, U, D) U _##N;
 #define Zz_BUSTACHE_VARIANT_CTOR(N, U, D)                                       \
 D(U val) noexcept : _which(N), _##N(std::move(val)) {}
