@@ -1,7 +1,7 @@
-{{ bustache }} [![Try it online][badge.wandbox]](http://melpon.org/wandbox/permlink/yA3GJI30xcqH7i83)
+{{ bustache }} [![Try it online][badge.wandbox]](http://melpon.org/wandbox/permlink/D8cgzQzcOkZcGm17)
 ========
 
-C++14 implementation of [{{ mustache }}](http://mustache.github.io/), compliant with [spec](https://github.com/mustache/spec) v1.1.3.
+C++11 implementation of [{{ mustache }}](http://mustache.github.io/), compliant with [spec](https://github.com/mustache/spec) v1.1.3.
 
 ## Dependencies
 * [Boost](http://www.boost.org/) - for `unordered_map`, etc
@@ -257,7 +257,7 @@ Lower is better.
 
 ## License
 
-    Copyright (c) 2014-2016 Jamboree
+    Copyright (c) 2014-2017 Jamboree
 
     Distributed under the Boost Software License, Version 1.0. (See accompanying
     file LICENSE_1_0.txt or copy at http://www.boost.org/LICENSE_1_0.txt)

@@ -1,5 +1,5 @@
 /*//////////////////////////////////////////////////////////////////////////////
-    Copyright (c) 2014-2016 Jamboree
+    Copyright (c) 2014-2017 Jamboree
 
     Distributed under the Boost Software License, Version 1.0. (See accompanying
     file LICENSE_1_0.txt or copy at http://www.boost.org/LICENSE_1_0.txt)
@@ -124,7 +124,7 @@ namespace bustache
     );
 
     template<class CharT, class Traits, class T, class Context,
-        std::enable_if_t<std::is_constructible<value::view, T>::value, bool> = true>
+        typename std::enable_if<std::is_constructible<value::view, T>::value, bool>::type = true>
     inline std::basic_ostream<CharT, Traits>&
     operator<<(std::basic_ostream<CharT, Traits>& out, manipulator<T, Context> const& manip)
     {
@@ -133,7 +133,7 @@ namespace bustache
     }
 
     template<class T, class Context,
-        std::enable_if_t<std::is_constructible<value::view, T>::value, bool> = true>
+        typename std::enable_if<std::is_constructible<value::view, T>::value, bool>::type = true>
     inline std::string to_string(manipulator<T, Context> const& manip)
     {
         std::string ret;

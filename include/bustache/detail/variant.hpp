@@ -1,5 +1,5 @@
 /*//////////////////////////////////////////////////////////////////////////////
-    Copyright (c) 2016 Jamboree
+    Copyright (c) 2016-2017 Jamboree
 
     Distributed under the Boost Software License, Version 1.0. (See accompanying
     file LICENSE_1_0.txt or copy at http://www.boost.org/LICENSE_1_0.txt)
@@ -140,16 +140,18 @@ namespace bustache
             return "bustache::bad_variant_access";
         }
     };
-
+    
     template<class Visitor, class Var>
-    inline decltype(auto) visit(Visitor&& visitor, variant_base<Var>& v)
+    inline auto visit(Visitor&& visitor, variant_base<Var>& v) ->
+        decltype(Var::switcher::common_ret((void*)nullptr, visitor))
     {
         auto& var = static_cast<Var&>(v);
         return Var::switcher::visit(var.which(), var.data(), visitor);
     }
 
     template<class Visitor, class Var>
-    inline decltype(auto) visit(Visitor&& visitor, variant_base<Var> const& v)
+    inline auto visit(Visitor&& visitor, variant_base<Var> const& v) ->
+        decltype(Var::switcher::common_ret((void const*)nullptr, visitor))
     {
         auto& var = static_cast<Var const&>(v);
         return Var::switcher::visit(var.which(), var.data(), visitor);
@@ -157,13 +159,15 @@ namespace bustache
 
     // Synomym of visit (for Boost.Variant compatibility)
     template<class Visitor, class Var>
-    inline decltype(auto) apply_visitor(Visitor&& visitor, variant_base<Var>& v)
+    inline auto apply_visitor(Visitor&& visitor, variant_base<Var>& v) ->
+        decltype(Var::switcher::common_ret((void*)nullptr, visitor))
     {
         return visit(std::forward<Visitor>(visitor), v);
     }
 
     template<class Visitor, class Var>
-    inline decltype(auto) apply_visitor(Visitor&& visitor, variant_base<Var> const& v)
+    inline auto apply_visitor(Visitor&& visitor, variant_base<Var> const& v) ->
+        decltype(Var::switcher::common_ret((void const*)nullptr, visitor))
     {
         return visit(std::forward<Visitor>(visitor), v);
     }
@@ -222,17 +226,9 @@ namespace bustache
     }
 }
 
-
 #define Zz_BUSTACHE_UNREACHABLE(MSG) { assert(!MSG); std::abort(); }
 #define Zz_BUSTACHE_VARIANT_SWITCH(N, U, D) case N: return v(detail::cast<U>(data));
-#if 0 // Common type deduction, not used for now
 #define Zz_BUSTACHE_VARIANT_RET(N, U, D) true ? v(detail::cast<U>(data)) :
-    // Put this into switcher before visit
-    template<class T, class Visitor>                                            \
-    static auto common_ret(T* data, Visitor& v) ->                              \
-        decltype(TYPES(Zz_BUSTACHE_VARIANT_RET,) throw bad_variant_access());   \
-    /***/
-#endif
 #define Zz_BUSTACHE_VARIANT_MEMBER(N, U, D) U _##N;
 #define Zz_BUSTACHE_VARIANT_CTOR(N, U, D)                                       \
 D(U val) noexcept : _which(N), _##N(std::move(val)) {}
@@ -245,7 +241,11 @@ static constexpr unsigned index(detail::type<U>) { return N; }                  
 struct switcher                                                                 \
 {                                                                               \
     template<class T, class Visitor>                                            \
-    static decltype(auto) visit(unsigned which, T* data, Visitor& v)            \
+    static auto common_ret(T* data, Visitor& v) ->                              \
+        decltype(TYPES(Zz_BUSTACHE_VARIANT_RET,) throw bad_variant_access());   \
+    template<class T, class Visitor>                                            \
+    static auto visit(unsigned which, T* data, Visitor& v) ->                   \
+        decltype(common_ret(data, v))                                           \
     {                                                                           \
         switch (which)                                                          \
         {                                                                       \
