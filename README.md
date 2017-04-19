@@ -19,6 +19,7 @@ C++11 implementation of [{{ mustache }}](http://mustache.github.io/), compliant 
 * Set Delimiter
 * Lambdas
 * HTML escaping *(configurable)*
+* Template inheritance *(extension)*
 
 ## Basics
 {{ mustache }} is a template language for text-replacing.
