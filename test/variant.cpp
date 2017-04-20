@@ -1,5 +1,5 @@
 /*//////////////////////////////////////////////////////////////////////////////
-    Copyright (c) 2016 Jamboree
+    Copyright (c) 2016-2017 Jamboree
 
     Distributed under the Boost Software License, Version 1.0. (See accompanying
     file LICENSE_1_0.txt or copy at http://www.boost.org/LICENSE_1_0.txt)
@@ -106,8 +106,10 @@ namespace bustache
     X(2, A, D)                                                                  \
     X(3, BadCopy, D)                                                            \
 /***/
-    struct Var : variant_base<Var>
+    class Var : public variant_base<Var>
     {
+        VAR(Zz_BUSTACHE_VARIANT_MATCH,)
+    public:
         Zz_BUSTACHE_VARIANT_DECL(Var, VAR, false)
 
         Var() noexcept : _which(0), _0() {}
