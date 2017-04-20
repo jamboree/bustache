@@ -31,6 +31,14 @@ namespace bustache
 
     using lambda1f = std::function<format(ast::content_list const&)>;
 
+    namespace detail
+    {
+        struct bool_
+        {
+            bool_(bool);
+        };
+    }
+
 #define BUSTACHE_VALUE(X, D)                                                    \
     X(0, std::nullptr_t, D)                                                     \
     X(1, bool, D)                                                               \
@@ -47,6 +55,18 @@ namespace bustache
 
     class value : public variant_base<value>
     {
+        static std::nullptr_t match_type(std::nullptr_t);
+        static int match_type(int);
+        // Use a fake bool_ to prevent unintended bool conversion.
+        static bool match_type(detail::bool_);
+        static double match_type(double);
+        static std::string match_type(std::string);
+        static array match_type(array);
+        static lambda0v match_type(lambda0v);
+        static lambda0f match_type(lambda0f);
+        static lambda1v match_type(lambda1v);
+        static lambda1f match_type(lambda1f);
+        static object match_type(object);
         // Need to override for `char const*`, otherwise `bool` will be chosen
         static std::string match_type(char const*);
 

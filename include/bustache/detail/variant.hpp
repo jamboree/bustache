@@ -256,7 +256,6 @@ struct switcher                                                                 
     TYPES(Zz_BUSTACHE_VARIANT_INDEX,)                                           \
 };                                                                              \
 private:                                                                        \
-TYPES(Zz_BUSTACHE_VARIANT_MATCH,)                                               \
 unsigned _which;                                                                \
 union                                                                           \
 {                                                                               \

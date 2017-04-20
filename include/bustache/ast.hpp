@@ -17,7 +17,7 @@ namespace bustache { namespace ast
 {
     struct variable;
     struct section;
-    struct content;
+    class content;
 
     using text = boost::string_ref;
 
@@ -67,8 +67,10 @@ namespace bustache { namespace ast
     X(5, block, D)                                                              \
 /***/
 
-    struct content : variant_base<content>
+    class content : public variant_base<content>
     {
+        BUSTACHE_AST_CONTENT(Zz_BUSTACHE_VARIANT_MATCH,)
+    public:
         Zz_BUSTACHE_VARIANT_DECL(content, BUSTACHE_AST_CONTENT, true)
 
         content() noexcept : _which(0), _0() {}
