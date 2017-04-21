@@ -11,6 +11,9 @@ function(add_catch_test name)
     target_link_libraries(${TEST_TARGET}
         ${PROJECT_NAME} Catch
     )
+    set_target_properties(${TEST_TARGET} PROPERTIES
+        CXX_STANDARD 14
+    )
     add_test(${TEST_TARGET} ${TEST_TARGET})
 endfunction()
 
