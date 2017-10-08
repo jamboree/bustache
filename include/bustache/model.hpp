@@ -127,20 +127,30 @@ namespace bustache
 
 namespace bustache
 {
+    struct default_unresolved_handler
+    {
+        value operator()(std::string const& /*key*/) const
+        {
+            return nullptr;
+        }
+    };
+
     // Forward decl only.
-    template<class CharT, class Traits, class Context>
+    template<class CharT, class Traits, class Context, class UnresolvedHandler = default_unresolved_handler>
     void generate_ostream
     (
         std::basic_ostream<CharT, Traits>& out, format const& fmt,
-        value::view const& data, Context const& context, option_type flag
+        value::view const& data, Context const& context,
+        option_type flag, UnresolvedHandler&& f = {}
     );
 
     // Forward decl only.
-    template<class String, class Context>
+    template<class String, class Context, class UnresolvedHandler = default_unresolved_handler>
     void generate_string
     (
         String& out, format const& fmt,
-        value::view const& data, Context const& context, option_type flag
+        value::view const& data, Context const& context,
+        option_type flag, UnresolvedHandler&& f = {}
     );
 
     template<class CharT, class Traits, class T, class Context,

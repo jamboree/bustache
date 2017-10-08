@@ -1,5 +1,5 @@
 /*//////////////////////////////////////////////////////////////////////////////
-    Copyright (c) 2016 Jamboree
+    Copyright (c) 2016-2017 Jamboree
 
     Distributed under the Boost Software License, Version 1.0. (See accompanying
     file LICENSE_1_0.txt or copy at http://www.boost.org/LICENSE_1_0.txt)
@@ -85,15 +85,16 @@ namespace bustache { namespace detail
 
 namespace bustache
 {
-    template<class String, class Context>
+    template<class String, class Context, class UnresolvedHandler>
     void generate_string
     (
         String& out, format const& fmt,
-        value::view const& data, Context const& context, option_type flag
+        value::view const& data, Context const& context,
+        option_type flag, UnresolvedHandler&& f
     )
     {
         detail::string_sink<String> sink{out};
-        generate(sink, fmt, data, context, flag);
+        generate(sink, fmt, data, context, flag, std::forward<UnresolvedHandler>(f));
     }
 
     // This is instantiated in src/generate.cpp.
@@ -101,7 +102,8 @@ namespace bustache
     void generate_string
     (
         std::string& out, format const& fmt,
-        value::view const& data, detail::any_context const& context, option_type flag
+        value::view const& data, detail::any_context const& context,
+        option_type flag, default_unresolved_handler&&
     );
 }
 

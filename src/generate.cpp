@@ -1,5 +1,5 @@
 /*//////////////////////////////////////////////////////////////////////////////
-    Copyright (c) 2016 Jamboree
+    Copyright (c) 2016-2017 Jamboree
 
     Distributed under the Boost Software License, Version 1.0. (See accompanying
     file LICENSE_1_0.txt or copy at http://www.boost.org/LICENSE_1_0.txt)
@@ -65,13 +65,15 @@ namespace bustache
     void generate_ostream
     (
         std::ostream& out, format const& fmt,
-        value::view const& data, detail::any_context const& context, option_type flag
+        value::view const& data, detail::any_context const& context,
+        option_type flag, default_unresolved_handler&&
     );
 
     template
     void generate_string
     (
         std::string& out, format const& fmt,
-        value::view const& data, detail::any_context const& context, option_type flag
+        value::view const& data, detail::any_context const& context,
+        option_type flag, default_unresolved_handler&&
     );
 }
