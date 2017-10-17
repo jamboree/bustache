@@ -27,7 +27,8 @@ find_package(Boost REQUIRED)
 # paths.
 target_include_directories(${PROJECT_NAME}
     PUBLIC
-        include
+        $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
+        $<INSTALL_INTERFACE:include>
         ${Boost_INCLUDE_DIR}
 )
 
@@ -50,13 +51,15 @@ set_target_properties(${PROJECT_NAME} PROPERTIES
 )
 
 # 'make install' to the correct location
-install(TARGETS ${PROJECT_NAME}
+install(TARGETS ${PROJECT_NAME} EXPORT bustache-config
     ARCHIVE  DESTINATION lib
     LIBRARY  DESTINATION lib
     RUNTIME  DESTINATION bin  # This is for Windows
 )
-
 install(DIRECTORY include/ DESTINATION include)
+install(EXPORT bustache-config NAMESPACE bustache:: DESTINATION share/bustache/cmake)
+
+export(TARGETS ${PROJECT_NAME} FILE bustache-config.cmake)
 
 if (BUSTACHE_ENABLE_TESTING)
     enable_testing()
