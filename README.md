@@ -27,7 +27,7 @@ C++11 implementation of [{{ mustache }}](http://mustache.github.io/), compliant 
 When it comes to formatting, there are 2 essential things -- _Format_ and _Data_.
 {{ mustache }} also allows an extra lookup-context for _Partials_.
 In {{ bustache }}, we represent the _Format_ as a `bustache::format` object, and `bustache::object` for _Data_, and anything that provides interface that is compatible with `Map<std::string, bustache::format>` can be used for _Partials_.
-The _Format_ is orthogonal to the _Data_, so techincally you can use your custom _Data_ type with `bustache::format`, but then you have to write the formatting logic yourself.
+The _Format_ is orthogonal to the _Data_, so technically you can use your custom _Data_ type with `bustache::format`, but then you have to write the formatting logic yourself.
 
 ### Quick Example
 ```c++
