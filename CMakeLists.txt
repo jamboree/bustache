@@ -21,6 +21,19 @@ add_library(${PROJECT_NAME}
 )
 
 find_package(Boost REQUIRED)
+if(CMAKE_VERSION VERSION_LESS 3.5)
+    # Boost imported targets were introduced in CMake 3.5
+    # Fallback to a traditional but less generic approach
+    target_include_directories(${PROJECT_NAME}
+        PUBLIC
+            ${Boost_INCLUDE_DIR}
+    )
+else()
+    target_link_libraries(${PROJECT_NAME}
+        PUBLIC
+            Boost::boost
+    )
+endif()
 
 # Define headers for this library. PUBLIC headers are used for
 # compiling the library, and will be added to consumers' build
@@ -29,7 +42,6 @@ target_include_directories(${PROJECT_NAME}
     PUBLIC
         $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
         $<INSTALL_INTERFACE:include>
-        ${Boost_INCLUDE_DIR}
 )
 
 # If we have compiler requirements for this library, list them here
