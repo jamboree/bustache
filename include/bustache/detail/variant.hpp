@@ -1,5 +1,5 @@
 /*//////////////////////////////////////////////////////////////////////////////
-    Copyright (c) 2016-2017 Jamboree
+    Copyright (c) 2016-2018 Jamboree
 
     Distributed under the Boost Software License, Version 1.0. (See accompanying
     file LICENSE_1_0.txt or copy at http://www.boost.org/LICENSE_1_0.txt)
@@ -229,10 +229,7 @@ namespace bustache
 #define Zz_BUSTACHE_UNREACHABLE(MSG) { assert(!MSG); std::abort(); }
 #define Zz_BUSTACHE_VARIANT_SWITCH(N, U, D) case N: return v(detail::cast<U>(data));
 #define Zz_BUSTACHE_VARIANT_RET(N, U, D) true ? v(detail::cast<U>(data)) :
-#define Zz_BUSTACHE_VARIANT_MEMBER(N, U, D) U _##N;
-#define Zz_BUSTACHE_VARIANT_CTOR(N, U, D)                                       \
-D(U val) noexcept : _which(N), _##N(std::move(val)) {}
-/***/
+#define Zz_BUSTACHE_VARIANT_MEMBER(N, U, D) alignas(U) char _##N[sizeof(U)];
 #define Zz_BUSTACHE_VARIANT_INDEX(N, U, D)                                      \
 static constexpr unsigned index(detail::type<U>) { return N; }                  \
 /***/
