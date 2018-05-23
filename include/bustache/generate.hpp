@@ -1,5 +1,5 @@
 /*//////////////////////////////////////////////////////////////////////////////
-    Copyright (c) 2016 Jamboree
+    Copyright (c) 2016-2017 Jamboree
 
     Distributed under the Boost Software License, Version 1.0. (See accompanying
     file LICENSE_1_0.txt or copy at http://www.boost.org/LICENSE_1_0.txt)
@@ -179,11 +179,10 @@ namespace bustache { namespace detail
             if (!inverted)
             {
                 content_scope scope{parent.scope, data};
-                auto old_scope = parent.scope;
                 parent.scope = &scope;
                 for (auto const& content : contents)
                     visit(parent, content);
-                parent.scope = old_scope;
+                parent.scope = scope.parent;
             }
             return false;
         }
@@ -199,11 +198,10 @@ namespace bustache { namespace detail
                 if (auto obj = get<object>(&val))
                 {
                     content_scope scope{parent.scope, *obj};
-                    auto old_scope = parent.scope;
                     parent.scope = &scope;
                     for (auto const& content : contents)
                         visit(parent, content);
-                    parent.scope = old_scope;
+                    parent.scope = scope.parent;
                 }
                 else
                 {
@@ -274,13 +272,14 @@ namespace bustache { namespace detail
         }
     };
 
-    template<class Sink, class Context>
+    template<class Sink, class Context, class UnresolvedHandler>
     struct content_visitor : content_visitor_base
     {
         using sink_type = Sink;
 
         Sink const& sink;
         Context const& context;
+        UnresolvedHandler handle_unresolved;
         std::string indent;
         bool needs_indent;
         bool const escaping;
@@ -288,11 +287,45 @@ namespace bustache { namespace detail
         content_visitor
         (
             content_scope const& scope, value::pointer cursor,
-            Sink const &sink, Context const &context, bool escaping
+            Sink const &sink, Context const &context,
+            UnresolvedHandler&& f, bool escaping
         )
           : content_visitor_base{&scope, cursor, {}, {}}
-          , sink(sink), context(context), needs_indent(), escaping(escaping)
+          , sink(sink), context(context)
+          , handle_unresolved(std::forward<UnresolvedHandler>(f))
+          , needs_indent(), escaping(escaping)
         {}
+
+        void handle_variable(ast::variable const& variable, value::view val)
+        {
+            if (needs_indent)
+            {
+                sink(indent.data(), indent.data() + indent.size());
+                needs_indent = false;
+            }
+            variable_visitor<content_visitor> visitor
+            {
+                *this, escaping && !variable.tag
+            };
+            visit(visitor, val);
+        }
+
+        void handle_section(ast::section const& section, value::view val)
+        {
+            bool inverted = section.tag == '^';
+            auto old_cursor = cursor;
+            section_visitor<content_visitor> visitor
+            {
+                *this, section.contents, inverted
+            };
+            cursor = val.get_pointer();
+            if (visit(visitor, val))
+            {
+                for (auto const& content : section.contents)
+                    visit(*this, content);
+            }
+            cursor = old_cursor;
+        }
 
         void operator()(ast::text const& text)
         {
@@ -322,47 +355,21 @@ namespace bustache { namespace detail
             needs_indent = *i++ == '\n';
             sink(i0, i);
         }
-        
+
         void operator()(ast::variable const& variable)
         {
             if (auto pv = resolve(variable.key))
-            {
-                if (needs_indent)
-                {
-                    sink(indent.data(), indent.data() + indent.size());
-                    needs_indent = false;
-                }
-                variable_visitor<content_visitor> visitor
-                {
-                    *this, escaping && !variable.tag
-                };
-                visit(visitor, *pv);
-            }
+                handle_variable(variable, *pv);
+            else
+                handle_variable(variable, handle_unresolved(variable.key));
         }
-        
+
         void operator()(ast::section const& section)
         {
-            bool inverted = section.tag == '^';
-            auto old_cursor = cursor;
             if (auto next = resolve(section.key))
-            {
-                cursor = next;
-                section_visitor<content_visitor> visitor
-                {
-                    *this, section.contents, inverted
-                };
-                if (!visit(visitor, *cursor))
-                {
-                    cursor = old_cursor;
-                    return;
-                }
-            }
-            else if (!inverted)
-                return;
-                
-            for (auto const& content : section.contents)
-                visit(*this, content);
-            cursor = old_cursor;
+                handle_section(section, *next);
+            else
+                handle_section(section, handle_unresolved(section.key));
         }
         
         void operator()(ast::partial const& partial)
@@ -401,27 +408,31 @@ namespace bustache { namespace detail
 
 namespace bustache
 {
-    template<class Sink>
+    template<class Sink, class UnresolvedHandler = default_unresolved_handler>
     inline void generate
     (
         Sink& sink, format const& fmt, value::view const& data,
-        option_type flag = normal
+        option_type flag = normal, UnresolvedHandler&& f = {}
     )
     {
-        generate(sink, fmt, data, no_context::dummy(), flag);
+        generate(sink, fmt, data, no_context::dummy(), flag, std::forward<UnresolvedHandler>(f));
     }
     
-    template<class Sink, class Context>
+    template<class Sink, class Context, class UnresolvedHandler = default_unresolved_handler>
     void generate
     (
         Sink& sink, format const& fmt, value::view const& data,
-        Context const& context, option_type flag = normal
+        Context const& context, option_type flag = normal, UnresolvedHandler&& f = {}
     )
     {
         object const empty;
         auto obj = get<object>(&data);
         detail::content_scope scope{nullptr, obj ? *obj : empty};
-        detail::content_visitor<Sink, Context> visitor{scope, data.get_pointer(), sink, context, flag};
+        detail::content_visitor<Sink, Context, UnresolvedHandler> visitor
+        {
+            scope, data.get_pointer(), sink, context,
+            std::forward<UnresolvedHandler>(f), flag
+        };
         for (auto const& content : fmt.contents())
             visit(visitor, content);
     }

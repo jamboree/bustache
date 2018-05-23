@@ -1,4 +1,4 @@
-{{ bustache }} [![Try it online][badge.wandbox]](https://wandbox.org/permlink/gpdqK6GLws4yDhKK)
+{{ bustache }} [![Try it online][badge.wandbox]](https://wandbox.org/permlink/ks35kBAlO6qycK0z)
 ========
 
 C++11 implementation of [{{ mustache }}](http://mustache.github.io/), compliant with [spec](https://github.com/mustache/spec) v1.1.3.
@@ -20,13 +20,14 @@ C++11 implementation of [{{ mustache }}](http://mustache.github.io/), compliant 
 * Lambdas
 * HTML escaping *(configurable)*
 * Template inheritance *(extension)*
+* Customizable behavior on unresolved key
 
 ## Basics
 {{ mustache }} is a template language for text-replacing.
 When it comes to formatting, there are 2 essential things -- _Format_ and _Data_.
 {{ mustache }} also allows an extra lookup-context for _Partials_.
 In {{ bustache }}, we represent the _Format_ as a `bustache::format` object, and `bustache::object` for _Data_, and anything that provides interface that is compatible with `Map<std::string, bustache::format>` can be used for _Partials_.
-The _Format_ is orthogonal to the _Data_, so techincally you can use your custom _Data_ type with `bustache::format`, but then you have to write the formatting logic yourself.
+The _Format_ is orthogonal to the _Data_, so technically you can use your custom _Data_ type with `bustache::format`, but then you have to write the formatting logic yourself.
 
 ### Quick Example
 ```c++
@@ -159,19 +160,22 @@ std::string txt = to_string(format(data, context, bustache::escape_html));
 `#include <bustache/generate.hpp>`
 
 ```c++
-template<class Sink>
+template<class Sink, class UnresolvedHandler = default_unresolved_handler>
 inline void generate
 (
     Sink& sink, format const& fmt, value::view const& data,
-    option_type flag = normal
-);
+    option_type flag = normal, UnresolvedHandler&& f = {}
+)
+{
+    generate(sink, fmt, data, no_context::dummy(), flag, std::forward<UnresolvedHandler>(f));
+}
 
-template<class Sink, class Context>
+template<class Sink, class Context, class UnresolvedHandler = default_unresolved_handler>
 void generate
 (
     Sink& sink, format const& fmt, value::view const& data,
-    Context const& context, option_type flag = normal
-);
+    Context const& context, option_type flag = normal, UnresolvedHandler&& f = {}
+)
 ```
 `Sink` is a polymorphic functor that handles:
 ```c++
@@ -182,6 +186,12 @@ void operator()(double data);
 ```
 You don't have to deal with HTML-escaping yourself, it's handled within `generate` depending on the option.
 
+`UnresolvedHandler` is a callable object that has the signature:
+```c++
+value(std::string const& key);
+```
+The `key` parameter is the unresolved key. The default handler just returns a null value.
+
 ### Predefined Generators
 These are predefined output built on `generate`.
 
@@ -190,18 +200,20 @@ These are predefined output built on `generate`.
 * `#include <bustache/generate/string.hpp>`
 
 ```c++
-template<class CharT, class Traits, class Context>
+template<class CharT, class Traits, class Context, class UnresolvedHandler = default_unresolved_handler>
 void generate_ostream
 (
     std::basic_ostream<CharT, Traits>& out, format const& fmt,
-    value::view const& data, Context const& context, option_type flag
+    value::view const& data, Context const& context,
+    option_type flag, UnresolvedHandler&& f = {}
 );
 
-template<class String, class Context>
+template<class String, class Context, class UnresolvedHandler = default_unresolved_handler>
 void generate_string
 (
     String& out, format const& fmt,
-    value::view const& data, Context const& context, option_type flag
+    value::view const& data, Context const& context,
+    option_type flag, UnresolvedHandler&& f = {}
 );
 ```
 

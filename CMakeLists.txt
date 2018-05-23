@@ -21,14 +21,27 @@ add_library(${PROJECT_NAME}
 )
 
 find_package(Boost REQUIRED)
+if(CMAKE_VERSION VERSION_LESS 3.5)
+    # Boost imported targets were introduced in CMake 3.5
+    # Fallback to a traditional but less generic approach
+    target_include_directories(${PROJECT_NAME}
+        PUBLIC
+            ${Boost_INCLUDE_DIR}
+    )
+else()
+    target_link_libraries(${PROJECT_NAME}
+        PUBLIC
+            Boost::boost
+    )
+endif()
 
 # Define headers for this library. PUBLIC headers are used for
 # compiling the library, and will be added to consumers' build
 # paths.
 target_include_directories(${PROJECT_NAME}
     PUBLIC
-        include
-        ${Boost_INCLUDE_DIR}
+        $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
+        $<INSTALL_INTERFACE:include>
 )
 
 # If we have compiler requirements for this library, list them here
@@ -50,13 +63,15 @@ set_target_properties(${PROJECT_NAME} PROPERTIES
 )
 
 # 'make install' to the correct location
-install(TARGETS ${PROJECT_NAME}
+install(TARGETS ${PROJECT_NAME} EXPORT bustache-config
     ARCHIVE  DESTINATION lib
     LIBRARY  DESTINATION lib
     RUNTIME  DESTINATION bin  # This is for Windows
 )
-
 install(DIRECTORY include/ DESTINATION include)
+install(EXPORT bustache-config NAMESPACE bustache:: DESTINATION share/bustache/cmake)
+
+export(TARGETS ${PROJECT_NAME} FILE bustache-config.cmake)
 
 if (BUSTACHE_ENABLE_TESTING)
     enable_testing()
