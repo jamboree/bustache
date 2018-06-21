@@ -1,5 +1,5 @@
 /*//////////////////////////////////////////////////////////////////////////////
-    Copyright (c) 2016-2017 Jamboree
+    Copyright (c) 2016-2018 Jamboree
 
     Distributed under the Boost Software License, Version 1.0. (See accompanying
     file LICENSE_1_0.txt or copy at http://www.boost.org/LICENSE_1_0.txt)
@@ -11,6 +11,35 @@
 
 namespace bustache { namespace detail
 {
+    struct strlit
+    {
+        char const* data;
+        std::size_t size;
+
+        constexpr strlit() : data(), size() {}
+
+        template<std::size_t N>
+        constexpr strlit(char const (&str)[N]) : data(str), size(N - 1) {}
+
+        constexpr explicit operator bool() const
+        {
+            return !!data;
+        }
+    };
+
+    inline strlit get_escaped(char c) noexcept
+    {
+        switch (c)
+        {
+        case '&': return "&amp;";
+        case '<': return "&lt;";
+        case '>': return "&gt;";
+        case '\\': return "&#92;";
+        case '"': return "&quot;";
+        default:  return {};
+        }
+    }
+
     inline value::pointer find(object const& data, std::string const& key)
     {
         auto it = data.find(key);
@@ -84,24 +113,21 @@ namespace bustache { namespace detail
             char const* last = it;
             while (it != end)
             {
-                switch (*it)
+                if (auto str = get_escaped(*it))
                 {
-                case '&': sink(last, it); literal("&amp;"); break;
-                case '<': sink(last, it); literal("&lt;"); break;
-                case '>': sink(last, it); literal("&gt;"); break;
-                case '\\': sink(last, it); literal("&#92;"); break;
-                case '"': sink(last, it); literal("&quot;"); break;
-                default:  ++it; continue;
+                    sink(last, it);
+                    literal(str);
+                    last = ++it;
                 }
-                last = ++it;
+                else
+                    ++it;
             }
             sink(last, it);
         }
 
-        template<std::size_t N>
-        void literal(char const (&str)[N]) const
+        void literal(strlit str) const
         {
-            sink(str, str + (N - 1));
+            sink(str.data, str.data + str.size);
         }
     };
 
