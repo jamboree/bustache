@@ -1,5 +1,5 @@
 /*//////////////////////////////////////////////////////////////////////////////
-    Copyright (c) 2016-2017 Jamboree
+    Copyright (c) 2016-2018 Jamboree
 
     Distributed under the Boost Software License, Version 1.0. (See accompanying
     file LICENSE_1_0.txt or copy at http://www.boost.org/LICENSE_1_0.txt)
@@ -11,51 +11,73 @@
 
 namespace bustache { namespace detail
 {
-    value::pointer content_visitor_base::resolve(std::string const& key) const
+    resolve_result content_visitor_base::resolve(std::string const& key, value_holder& hold) const
     {
         auto ki = key.begin();
         auto ke = key.end();
         if (ki == ke)
-            return{};
-        value::pointer pv = nullptr;
+            return {};
+        value_ptr pv = nullptr;
         if (*ki == '.')
         {
             if (++ki == ke)
-                return cursor;
+                return {cursor, nullptr};
             auto k0 = ki;
             while (*ki != '.' && ++ki != ke);
             key_cache.assign(k0, ki);
-            pv = find(scope->data, key_cache);
+            pv = scope->data.get(key_cache, hold);
         }
         else
         {
             auto k0 = ki;
             while (ki != ke && *ki != '.') ++ki;
             key_cache.assign(k0, ki);
-            pv = scope->lookup(key_cache);
+            pv = scope->lookup(key_cache, hold);
         }
-        if (ki == ke)
-            return pv;
-        if (auto obj = get<object>(pv))
+        return {pv, ki == ke ? nullptr : &*ki};
+    }
+
+    bool nested_resolver::next(iter ki, iter ke, value_holder& hold)
+    {
+        auto k0 = ++ki;
+        while (ki != ke)
         {
-            auto k0 = ++ki;
-            while (ki != ke)
+            if (*ki == '.')
             {
-                if (*ki == '.')
+                key_cache.assign(k0, ki);
+                if (hold.used())
                 {
-                    key_cache.assign(k0, ki);
-                    obj = get<object>(find(*obj, key_cache));
+                    value_holder new_hold;
+                    obj = get_object(obj.get(key_cache, new_hold));
                     if (!obj)
-                        return nullptr;
-                    k0 = ++ki;
+                        return false;
+                    return next(ki, ke, new_hold);
                 }
-                else
-                    ++ki;
+                obj = get_object(obj.get(key_cache, hold));
+                if (!obj)
+                    return false;
+                k0 = ++ki;
             }
-            key_cache.assign(k0, ki);
-            return find(*obj, key_cache);
+            else
+                ++ki;
         }
-        return nullptr;
+        key_cache.assign(k0, ki);
+        if (hold.used())
+        {
+            value_holder new_hold;
+            return done(new_hold);
+        }
+        return done(hold);
+    }
+
+    inline bool nested_resolver::done(value_holder& hold)
+    {
+        if (auto pv = obj.get(key_cache, hold))
+        {
+            handle(*pv);
+            return true;
+        }
+        return false;
     }
 }}
 
@@ -65,7 +87,7 @@ namespace bustache
     void generate_ostream
     (
         std::ostream& out, format const& fmt,
-        value::view const& data, detail::any_context const& context,
+        value_view const& data, detail::any_context const& context,
         option_type flag, default_unresolved_handler&&
     );
 
@@ -73,7 +95,7 @@ namespace bustache
     void generate_string
     (
         std::string& out, format const& fmt,
-        value::view const& data, detail::any_context const& context,
+        value_view const& data, detail::any_context const& context,
         option_type flag, default_unresolved_handler&&
     );
 }

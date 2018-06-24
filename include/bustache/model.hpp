@@ -1,5 +1,5 @@
 /*//////////////////////////////////////////////////////////////////////////////
-    Copyright (c) 2014-2017 Jamboree
+    Copyright (c) 2014-2018 Jamboree
 
     Distributed under the Boost Software License, Version 1.0. (See accompanying
     file LICENSE_1_0.txt or copy at http://www.boost.org/LICENSE_1_0.txt)
@@ -31,13 +31,51 @@ namespace bustache
 
     using lambda1f = std::function<format(ast::content_list const&)>;
 
-    namespace detail
+    struct value_view;
+
+    using value_ptr = variant_ptr<value_view>;
+
+    struct value_holder;
+
+    template<class T>
+    struct object_trait;
+
+    struct object_view
     {
-        struct bool_
+        object_view() noexcept : _data(), _get(&empty_get) {}
+
+        template<class T>
+        explicit object_view(T const& obj) noexcept
+          : _data(&obj), _get(&get_impl<T>)
+        {}
+
+        object_view(object const& obj) noexcept;
+
+        explicit operator bool() const noexcept
         {
-            bool_(bool);
-        };
-    }
+            return !!_data;
+        }
+
+        value_ptr get(std::string const& key, value_holder& any) const
+        {
+            return _get(_data, key, any);
+        }
+
+    private:
+        static value_ptr empty_get(void const*, std::string const&, value_holder&)
+        {
+            return {};
+        }
+
+        template<class T>
+        static value_ptr get_impl(void const* p, std::string const& key, value_holder& hold)
+        {
+            return object_trait<T>::get(*static_cast<T const*>(p), key, hold);
+        }
+
+        void const* _data;
+        value_ptr(*_get)(void const*, std::string const&, value_holder&);
+    };
 
 #define BUSTACHE_VALUE(X, D)                                                    \
     X(0, std::nullptr_t, D)                                                     \
@@ -51,68 +89,140 @@ namespace bustache
     X(8, lambda1v, D)                                                           \
     X(9, lambda1f, D)                                                           \
     X(10, object, D)                                                            \
+    X(11, object_view, D)                                                       \
 /***/
+
+    namespace detail
+    {
+        struct bool_
+        {
+            bool_(bool);
+        };
+
+        struct value_type_matcher
+        {
+            static std::nullptr_t match(std::nullptr_t);
+            static int match(int);
+            // Use a fake bool_ to prevent unintended bool conversion.
+            static bool match(detail::bool_);
+            static double match(double);
+            static std::string match(std::string);
+            // Need to override for `char const*`, otherwise `bool` will be chosen.
+            static std::string match(char const*);
+            static array match(array);
+            static lambda0v match(lambda0v);
+            static lambda0f match(lambda0f);
+            static lambda1v match(lambda1v);
+            static lambda1f match(lambda1f);
+            static object match(object);
+            static object_view match(object_view);
+        };
+
+        union value_union
+        {
+            BUSTACHE_VALUE(Zz_BUSTACHE_VARIANT_MEMBER, )
+        };
+
+        union holder_storage
+        {
+            void* ptr;
+            alignas(std::max_align_t) char data[32];
+        };
+
+        template<class T, bool InPlace = sizeof(T) <= 32 && alignof(T) <= alignof(std::max_align_t)>
+        struct holder_trait
+        {
+            static T& create(holder_storage& store, T&& val)
+            {
+                return *new(store.data) T(std::move(val));
+            }
+
+            template<class X>
+            static void destroy(void* p) noexcept
+            {
+                p = static_cast<X*>(p)->store.data;
+                static_cast<T*>(p)->~T();
+            }
+        };
+
+        template<class T>
+        struct holder_trait<T, false>
+        {
+            static T& create(holder_storage& store, T&& val)
+            {
+                auto p = new T(std::move(val));
+                store.ptr = p;
+                return *p;
+            }
+
+            template<class X>
+            static void destroy(void* p) noexcept
+            {
+                p = static_cast<X*>(p)->store.ptr;
+                delete static_cast<T*>(p);
+            }
+        };
+
+        struct object_holder
+        {
+            object_view view;
+            holder_storage store;
+        };
+    }
 
     class value : public variant_base<value>
     {
-        static std::nullptr_t match_type(std::nullptr_t);
-        static int match_type(int);
-        // Use a fake bool_ to prevent unintended bool conversion.
-        static bool match_type(detail::bool_);
-        static double match_type(double);
-        static std::string match_type(std::string);
-        static array match_type(array);
-        static lambda0v match_type(lambda0v);
-        static lambda0f match_type(lambda0f);
-        static lambda1v match_type(lambda1v);
-        static lambda1f match_type(lambda1f);
-        static object match_type(object);
-        // Need to override for `char const*`, otherwise `bool` will be chosen
-        static std::string match_type(char const*);
-
+        using type_matcher = detail::value_type_matcher;
+        unsigned _which;
+        union
+        {
+            char _storage[1];
+            detail::value_union _union;
+        };
     public:
 
-        struct view;
-        using pointer = variant_ptr<view>;
+        friend struct value_view;
+        using view = value_view;
+        using pointer = value_ptr;
 
         Zz_BUSTACHE_VARIANT_DECL(value, BUSTACHE_VALUE, false)
 
-        value() noexcept : _which(0), _0() {}
+        value() noexcept : _which(0) {}
 
-        pointer get_pointer() const
+        pointer get_pointer() const noexcept
         {
             return {_which, _storage};
         }
     };
 
-    struct value::view : variant_base<view>
+    struct value_view : variant_base<value_view>
     {
         using switcher = value::switcher;
 
 #define BUSTACHE_VALUE_VIEW_CTOR(N, U, D)                                       \
-        view(U const& data) noexcept : _which(N), _data(&data) {}
+        value_view(U const& data) noexcept : _which(N), _data(&data) {}
         BUSTACHE_VALUE(BUSTACHE_VALUE_VIEW_CTOR,)
 #undef BUSTACHE_VALUE_VIEW_CTOR
 
-        view(value const& data) noexcept
+        value_view(value const& data) noexcept
           : _which(data._which), _data(data._storage)
         {}
 
-        view(unsigned which, void const* data) noexcept
+        value_view(unsigned which, void const* data) noexcept
           : _which(which), _data(data)
         {}
 
-        unsigned which() const
+        unsigned which() const noexcept
         {
             return _which;
         }
 
-        void const* data() const
+        void const* data() const noexcept
         {
             return _data;
         }
 
-        pointer get_pointer() const
+        value_ptr get_pointer() const noexcept
         {
             return {_which, _data};
         }
@@ -123,6 +233,92 @@ namespace bustache
         void const* _data;
     };
 #undef BUSTACHE_VALUE
+
+    struct value_holder
+    {
+        using type_matcher = detail::value_type_matcher;
+        using switcher = value::switcher;
+
+        value_holder() noexcept : _destroy() {}
+
+        ~value_holder()
+        {
+            if (_destroy)
+                _destroy(_storage);
+        }
+
+        bool used() const noexcept { return !!_destroy; }
+
+        template<class T, class U = decltype(type_matcher::match(std::declval<T>()))>
+        value_ptr operator()(T&& other)
+        {
+            reset();
+            auto p = new(_storage) U(std::forward<T>(other));
+            _destroy = &destroy<U>;
+            return {switcher::index(detail::type<U>{}), p};
+        }
+
+        template<class T>
+        value_ptr object(T obj)
+        {
+            using trait = detail::holder_trait<T>;
+            reset();
+            _obj.view = object_view(trait::create(_obj.store, std::move(obj)));
+            _destroy = &trait::destroy<detail::object_holder>;
+            return {switcher::index(detail::type<object_view>{}), &_obj.view};
+        }
+
+    private:
+        void reset() noexcept
+        {
+            if (_destroy)
+            {
+                _destroy(_storage);
+                _destroy = nullptr;
+            }
+        }
+
+        template<class T>
+        static void destroy(void* p) noexcept
+        {
+            static_cast<T*>(p)->~T();
+        }
+
+        void(*_destroy)(void*) noexcept;
+        union
+        {
+            char _storage[1];
+            detail::value_union _union;
+            detail::object_holder _obj;
+        };
+    };
+
+    template<>
+    struct object_trait<object>
+    {
+        static value_ptr get(object const& obj, std::string const& key, value_holder&)
+        {
+            auto it = obj.find(key);
+            return it == obj.end() ? value_ptr() : it->second.get_pointer();
+        }
+    };
+
+    inline object_view::object_view(object const& obj) noexcept
+      : _data(&obj), _get(&get_impl<object>)
+    {}
+
+    inline object_view get_object(value_ptr p) noexcept
+    {
+        if (p)
+        {
+            auto const which = p.which();
+            if (value::switcher::index(detail::type<object>{}) == which)
+                return *static_cast<object const*>(p.data());
+            if (value::switcher::index(detail::type<object_view>{}) == which)
+                return *static_cast<object_view const*>(p.data());
+        }
+        return {};
+    }
 }
 
 namespace bustache
@@ -140,7 +336,7 @@ namespace bustache
     void generate_ostream
     (
         std::basic_ostream<CharT, Traits>& out, format const& fmt,
-        value::view const& data, Context const& context,
+        value_view const& data, Context const& context,
         option_type flag, UnresolvedHandler&& f = {}
     );
 
@@ -149,12 +345,12 @@ namespace bustache
     void generate_string
     (
         String& out, format const& fmt,
-        value::view const& data, Context const& context,
+        value_view const& data, Context const& context,
         option_type flag, UnresolvedHandler&& f = {}
     );
 
     template<class CharT, class Traits, class T, class Context,
-        typename std::enable_if<std::is_constructible<value::view, T>::value, bool>::type = true>
+        typename std::enable_if<std::is_constructible<value_view, T>::value, bool>::type = true>
     inline std::basic_ostream<CharT, Traits>&
     operator<<(std::basic_ostream<CharT, Traits>& out, manipulator<T, Context> const& manip)
     {
@@ -163,7 +359,7 @@ namespace bustache
     }
 
     template<class T, class Context,
-        typename std::enable_if<std::is_constructible<value::view, T>::value, bool>::type = true>
+        typename std::enable_if<std::is_constructible<value_view, T>::value, bool>::type = true>
     inline std::string to_string(manipulator<T, Context> const& manip)
     {
         std::string ret;

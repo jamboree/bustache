@@ -1,5 +1,5 @@
 /*//////////////////////////////////////////////////////////////////////////////
-    Copyright (c) 2016-2017 Jamboree
+    Copyright (c) 2016-2018 Jamboree
 
     Distributed under the Boost Software License, Version 1.0. (See accompanying
     file LICENSE_1_0.txt or copy at http://www.boost.org/LICENSE_1_0.txt)
@@ -41,7 +41,7 @@ namespace bustache
     void generate_ostream
     (
         std::basic_ostream<CharT, Traits>& out, format const& fmt,
-        value::view const& data, Context const& context,
+        value_view const& data, Context const& context,
         option_type flag, UnresolvedHandler&& f
     )
     {
@@ -54,7 +54,7 @@ namespace bustache
     void generate_ostream
     (
         std::ostream& out, format const& fmt,
-        value::view const& data, detail::any_context const& context,
+        value_view const& data, detail::any_context const& context,
         option_type flag, default_unresolved_handler&&
     );
 }

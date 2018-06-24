@@ -40,29 +40,19 @@ namespace bustache { namespace detail
         }
     }
 
-    inline value::pointer find(object const& data, std::string const& key)
-    {
-        auto it = data.find(key);
-        if (it != data.end())
-            return it->second.get_pointer();
-        return nullptr;
-    }
-
     template<class Sink>
     struct value_printer
     {
-        typedef void result_type;
-        
         Sink const& sink;
         bool const escaping;
 
         void operator()(std::nullptr_t) const {}
-        
-        template<class T>
-        void operator()(T data) const
-        {
-            sink(data);
-        }
+
+        void operator()(bool data) const { sink(data); }
+
+        void operator()(int data) const { sink(data); }
+
+        void operator()(double data) const { sink(data); }
 
         void operator()(std::string const& data) const
         {
@@ -87,7 +77,7 @@ namespace bustache { namespace detail
             }
         }
 
-        void operator()(object const&) const
+        void operator()(object_view) const
         {
             literal("[Object]");
         }
@@ -134,16 +124,50 @@ namespace bustache { namespace detail
     struct content_scope
     {
         content_scope const* const parent;
-        object const& data;
+        object_view data;
 
-        value::pointer lookup(std::string const& key) const
+        value_ptr lookup(std::string const& key, value_holder& hold) const
         {
-            if (auto pv = find(data, key))
+            if (auto pv = data.get(key, hold))
                 return pv;
             if (parent)
-                return parent->lookup(key);
+                return parent->lookup(key, hold);
             return nullptr;
         }
+    };
+
+    struct resolve_result
+    {
+        value_ptr pv;
+        char const* sub;
+    };
+
+    struct resolve_handler
+    {
+        template<class F>
+        resolve_handler(F const& f) noexcept : fn(&fn_impl<F>), p(&f) {}
+
+        void operator()(value_view v) const { fn(p, v); }
+
+        template<class F>
+        static void fn_impl(void const* p, value_view v)
+        {
+            (*static_cast<F const*>(p))(v);
+        }
+
+        void(*fn)(void const*, value_view);
+        void const* p;
+    };
+
+    struct nested_resolver
+    {
+        using iter = char const*;
+        std::string& key_cache;
+        object_view obj;
+        resolve_handler handle;
+
+        bool next(iter k0, iter ke, value_holder& hold);
+        bool done(value_holder& hold);
     };
 
     struct content_visitor_base
@@ -151,12 +175,12 @@ namespace bustache { namespace detail
         using result_type = void;
 
         content_scope const* scope;
-        value::pointer cursor;
+        value_ptr cursor;
         std::vector<ast::override_map const*> chain;
         mutable std::string key_cache;
 
         // Defined in src/generate.cpp.
-        value::pointer resolve(std::string const& key) const;
+        resolve_result resolve(std::string const& key, value_holder& hold) const;
 
         ast::content_list const* find_override(std::string const& key) const
         {
@@ -200,16 +224,24 @@ namespace bustache { namespace detail
         ast::content_list const& contents;
         bool const inverted;
 
-        bool operator()(object const& data) const
+        void expand() const
+        {
+            for (auto const& content : contents)
+                visit(parent, content);
+        }
+
+        void expand_with_scope(object_view data) const
+        {
+            content_scope scope{parent.scope, data};
+            parent.scope = &scope;
+            expand();
+            parent.scope = scope.parent;
+        }
+
+        bool operator()(object_view data) const
         {
             if (!inverted)
-            {
-                content_scope scope{parent.scope, data};
-                parent.scope = &scope;
-                for (auto const& content : contents)
-                    visit(parent, content);
-                parent.scope = scope.parent;
-            }
+                expand_with_scope(data);
             return false;
         }
 
@@ -221,19 +253,10 @@ namespace bustache { namespace detail
             for (auto const& val : data)
             {
                 parent.cursor = val.get_pointer();
-                if (auto obj = get<object>(&val))
-                {
-                    content_scope scope{parent.scope, *obj};
-                    parent.scope = &scope;
-                    for (auto const& content : contents)
-                        visit(parent, content);
-                    parent.scope = scope.parent;
-                }
+                if (auto obj = get_object(parent.cursor))
+                    expand_with_scope(obj);
                 else
-                {
-                    for (auto const& content : contents)
-                        visit(parent, content);
-                }
+                    expand();
             }
             return false;
         }
@@ -312,7 +335,7 @@ namespace bustache { namespace detail
 
         content_visitor
         (
-            content_scope const& scope, value::pointer cursor,
+            content_scope const& scope, value_ptr cursor,
             Sink const &sink, Context const &context,
             UnresolvedHandler&& f, bool escaping
         )
@@ -322,7 +345,7 @@ namespace bustache { namespace detail
           , needs_indent(), escaping(escaping)
         {}
 
-        void handle_variable(ast::variable const& variable, value::view val)
+        void handle_variable(ast::variable const& variable, value_view val)
         {
             if (needs_indent)
             {
@@ -336,7 +359,7 @@ namespace bustache { namespace detail
             visit(visitor, val);
         }
 
-        void handle_section(ast::section const& section, value::view val)
+        void handle_section(ast::section const& section, value_view val)
         {
             bool inverted = section.tag == '^';
             auto old_cursor = cursor;
@@ -351,6 +374,25 @@ namespace bustache { namespace detail
                     visit(*this, content);
             }
             cursor = old_cursor;
+        }
+
+        template<class Handler>
+        void resolve_and_handle(std::string const& key, Handler handle)
+        {
+            value_holder hold;
+            auto result = resolve(key, hold);
+            if (result.sub)
+            {
+                if (auto obj = get_object(result.pv))
+                {
+                    nested_resolver nested{key_cache, obj, handle};
+                    if (nested.next(result.sub, key.data() + key.size(), hold))
+                        return;
+                }
+            }
+            else if (result.pv)
+                return handle(*result.pv);
+            handle(handle_unresolved(key));
         }
 
         void operator()(ast::text const& text)
@@ -384,18 +426,18 @@ namespace bustache { namespace detail
 
         void operator()(ast::variable const& variable)
         {
-            if (auto pv = resolve(variable.key))
-                handle_variable(variable, *pv);
-            else
-                handle_variable(variable, handle_unresolved(variable.key));
+            resolve_and_handle(variable.key, [&](value_view val)
+            {
+                handle_variable(variable, val);
+            });
         }
 
         void operator()(ast::section const& section)
         {
-            if (auto next = resolve(section.key))
-                handle_section(section, *next);
-            else
-                handle_section(section, handle_unresolved(section.key));
+            resolve_and_handle(section.key, [&](value_view val)
+            {
+                handle_section(section, val);
+            });
         }
         
         void operator()(ast::partial const& partial)
@@ -437,7 +479,7 @@ namespace bustache
     template<class Sink, class UnresolvedHandler = default_unresolved_handler>
     inline void generate
     (
-        Sink& sink, format const& fmt, value::view const& data,
+        Sink& sink, format const& fmt, value_view const& data,
         option_type flag = normal, UnresolvedHandler&& f = {}
     )
     {
@@ -447,13 +489,11 @@ namespace bustache
     template<class Sink, class Context, class UnresolvedHandler = default_unresolved_handler>
     void generate
     (
-        Sink& sink, format const& fmt, value::view const& data,
+        Sink& sink, format const& fmt, value_view const& data,
         Context const& context, option_type flag = normal, UnresolvedHandler&& f = {}
     )
     {
-        object const empty;
-        auto obj = get<object>(&data);
-        detail::content_scope scope{nullptr, obj ? *obj : empty};
+        detail::content_scope scope{nullptr, get_object(data.get_pointer())};
         detail::content_visitor<Sink, Context, UnresolvedHandler> visitor
         {
             scope, data.get_pointer(), sink, context,

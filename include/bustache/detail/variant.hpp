@@ -16,13 +16,13 @@
 namespace bustache { namespace detail
 {
     template<class T>
-    inline T& cast(void* data)
+    inline T& cast(void* data) noexcept
     {
         return *static_cast<T*>(data);
     }
 
     template<class T>
-    inline T const& cast(void const* data)
+    inline T const& cast(void const* data) noexcept
     {
         return *static_cast<T const*>(data);
     }
@@ -37,8 +37,6 @@ namespace bustache { namespace detail
 
     struct ctor_visitor
     {
-        using result_type = void;
-
         void* data;
 
         template<class T>
@@ -56,8 +54,6 @@ namespace bustache { namespace detail
 
     struct assign_visitor
     {
-        using result_type = void;
-
         void* data;
 
         template<class T>
@@ -75,10 +71,8 @@ namespace bustache { namespace detail
 
     struct dtor_visitor
     {
-        using result_type = void;
-
         template<class T>
-        void operator()(T& t) const
+        void operator()(T& t) const noexcept
         {
             t.~T();
         }
@@ -101,25 +95,25 @@ namespace bustache
         variant_ptr(std::nullptr_t) noexcept : _data() {}
 
         variant_ptr(unsigned which, void const* data) noexcept
-            : _which(which), _data(data)
+          : _which(which), _data(data)
         {}
 
-        explicit operator bool() const
+        explicit operator bool() const noexcept
         {
             return !!_data;
         }
 
-        View operator*() const
+        View operator*() const noexcept
         {
-            return{_which, _data};
+            return {_which, _data};
         }
 
-        unsigned which() const
+        unsigned which() const noexcept
         {
             return _which;
         }
 
-        void const* data() const
+        void const* data() const noexcept
         {
             return _data;
         }
@@ -191,7 +185,7 @@ namespace bustache
     }
 
     template<class T, class Var>
-    inline T* get(variant_base<Var>* vp)
+    inline T* get(variant_base<Var>* vp) noexcept
     {
         if (vp)
         {
@@ -203,7 +197,7 @@ namespace bustache
     }
 
     template<class T, class Var>
-    inline T const* get(variant_base<Var> const* vp)
+    inline T const* get(variant_base<Var> const* vp) noexcept
     {
         if (vp)
         {
@@ -215,7 +209,7 @@ namespace bustache
     }
 
     template<class T, class Var>
-    inline T const* get(variant_ptr<Var> const& vp)
+    inline T const* get(variant_ptr<Var> vp) noexcept
     {
         if (vp)
         {
@@ -233,7 +227,7 @@ namespace bustache
 #define Zz_BUSTACHE_VARIANT_INDEX(N, U, D)                                      \
 static constexpr unsigned index(detail::type<U>) { return N; }                  \
 /***/
-#define Zz_BUSTACHE_VARIANT_MATCH(N, U, D) static U match_type(U);
+#define Zz_BUSTACHE_VARIANT_MATCH(N, U, D) static U match(U);
 #define Zz_BUSTACHE_VARIANT_DECL(VAR, TYPES, NOEXCPET)                          \
 struct switcher                                                                 \
 {                                                                               \
@@ -253,13 +247,7 @@ struct switcher                                                                 
     TYPES(Zz_BUSTACHE_VARIANT_INDEX,)                                           \
 };                                                                              \
 private:                                                                        \
-unsigned _which;                                                                \
-union                                                                           \
-{                                                                               \
-    char _storage[1];                                                           \
-    TYPES(Zz_BUSTACHE_VARIANT_MEMBER,)                                          \
-};                                                                              \
-void invalidate()                                                               \
+void invalidate() noexcept                                                      \
 {                                                                               \
     if (valid())                                                                \
     {                                                                           \
@@ -293,19 +281,19 @@ void do_assign(T& other)                                                        
     }                                                                           \
 }                                                                               \
 public:                                                                         \
-unsigned which() const                                                          \
+unsigned which() const noexcept                                                 \
 {                                                                               \
     return _which;                                                              \
 }                                                                               \
-bool valid() const                                                              \
+bool valid() const noexcept                                                     \
 {                                                                               \
     return _which != ~0u;                                                       \
 }                                                                               \
-void* data()                                                                    \
+void* data() noexcept                                                           \
 {                                                                               \
     return _storage;                                                            \
 }                                                                               \
-void const* data() const                                                        \
+void const* data() const noexcept                                               \
 {                                                                               \
     return _storage;                                                            \
 }                                                                               \
@@ -317,7 +305,7 @@ VAR(VAR const& other) : _which(other._which)                                    
 {                                                                               \
     do_init(other);                                                             \
 }                                                                               \
-template<class T, class U = decltype(match_type(std::declval<T>()))>            \
+template<class T, class U = decltype(type_matcher::match(std::declval<T>()))>   \
 VAR(T&& other) noexcept(std::is_nothrow_constructible<U, T>::value)             \
   : _which(switcher::index(detail::type<U>{}))                                  \
 {                                                                               \
@@ -331,7 +319,7 @@ VAR(T&& other) noexcept(std::is_nothrow_constructible<U, T>::value)             
         switcher::visit(_which, data(), v);                                     \
     }                                                                           \
 }                                                                               \
-template<class T, class U = decltype(match_type(std::declval<T>()))>            \
+template<class T, class U = decltype(type_matcher::match(std::declval<T>()))>   \
 U& operator=(T&& other) noexcept(detail::noexcept_ctor_assign<U, T>::value)     \
 {                                                                               \
     if (switcher::index(detail::type<U>{}) == _which)                           \

@@ -69,11 +69,20 @@ namespace bustache { namespace ast
 
     class content : public variant_base<content>
     {
-        BUSTACHE_AST_CONTENT(Zz_BUSTACHE_VARIANT_MATCH,)
+        struct type_matcher
+        {
+            BUSTACHE_AST_CONTENT(Zz_BUSTACHE_VARIANT_MATCH, )
+        };
+        unsigned _which;
+        union
+        {
+            char _storage[1];
+            BUSTACHE_AST_CONTENT(Zz_BUSTACHE_VARIANT_MEMBER, )
+        };
     public:
         Zz_BUSTACHE_VARIANT_DECL(content, BUSTACHE_AST_CONTENT, true)
 
-        content() noexcept : _which(0), _0() {}
+        content() noexcept : _which(0) {}
     };
 #undef BUSTACHE_AST_CONTENT
 
