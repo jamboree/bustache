@@ -38,10 +38,9 @@ namespace bustache { namespace detail
             data ? append("true") : append("false");
         }
 
-        template<std::size_t N>
-        void append(char const (&str)[N]) const
+        void append(strlit str) const
         {
-            out.insert(out.end(), str, str + (N - 1));
+            out.insert(out.end(), str.data, str.data + str.size);
         }
 
         template<class T>
