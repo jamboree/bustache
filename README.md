@@ -323,13 +323,21 @@ You can also use `what()` for a descriptive text.
 Compare with 2 other libs - [mstch](https://github.com/no1msd/mstch) and [Kainjow.Mustache](https://github.com/kainjow/Mustache).
 See [benchmark.cpp](test/benchmark.cpp). 
 
-Sample run (VS2015 Update 3, boost 1.60.0, 64-bit release build):
+Sample run (VS2017 15.7.4, boost 1.67.0, 64-bit release build):
 ```
+06/25/18 16:14:52
+Run on (8 X 3392 MHz CPU s)
+CPU Caches:
+  L1 Data 32K (x4)
+  L1 Instruction 32K (x4)
+  L2 Unified 262K (x4)
+  L3 Unified 8388K (x1)
+------------------------------------------------------
 Benchmark               Time           CPU Iterations
------------------------------------------------------
-bustache_usage       6325 ns       6397 ns     112179
-mstch_usage        140822 ns     140795 ns       4986
-kainjow_usage       47354 ns      47420 ns      14475
+------------------------------------------------------
+bustache_usage       6605 ns       6627 ns      89600
+mstch_usage        106620 ns     106027 ns       5600
+kainjow_usage       22828 ns      22949 ns      32000
 ```
 Lower is better.
 
@@ -337,7 +345,7 @@ Lower is better.
 
 ## License
 
-    Copyright (c) 2014-2017 Jamboree
+    Copyright (c) 2014-2018 Jamboree
 
     Distributed under the Boost Software License, Version 1.0. (See accompanying
     file LICENSE_1_0.txt or copy at http://www.boost.org/LICENSE_1_0.txt)

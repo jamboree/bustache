@@ -187,47 +187,67 @@ static void mstch_usage(benchmark::State& state)
 
 static void kainjow_usage(benchmark::State& state)
 {
-    using namespace Kainjow;
-    using Data = Mustache::Data;
+    using namespace kainjow::mustache;
 
     int n = 0;
-    Data data;
-    data.set("header", "Colors");
+    object dat
     {
-        Data d1, d2, d3;
-        d1.set("name", "red");
-        d1.set("first", Data::Type::True);
-        d1.set("url", "#Red");
-        d2.set("name", "green");
-        d2.set("link", Data::Type::True);
-        d2.set("url", "#Green");
-        d3.set("name", "blue");
-        d3.set("link", Data::Type::True);
-        d3.set("url", "#Blue");
-        data.set("items", Data::ListType{d1, d2, d3});
-    }
-    data.set("empty", Data::Type::False);
-    data.set("count", Data::LambdaType{[&n](const std::string&) { return std::to_string(++n); }});
-    data.set("array", Data::ListType{"1", "2", "3"});
-    data.set("a", {"b",{"c", "true"}});
-    {
-        Data d1, d2, d3;
-        d1.set("name", "Joe");
-        d1.set("body", "<html> should be escaped");
-        d2.set("name", "Sam");
-        d2.set("body", "{{mustache}} can be seen");
-        d3.set("name", "New");
-        d3.set("body", "break\nup");
-        data.set("comments", Data::ListType{d1, d2, d3});
-    }
-    data.set("href", Data::PartialType{[]() { return "href=\"{{url}}\""; }});
+        {"header", "Colors"},
+        {"items",
+            list
+            {
+                object
+                {
+                    {"name", "red"},
+                    {"first", true},
+                    {"url", "#Red"}
+                },
+                object
+                {
+                    {"name", "green"},
+                    {"link", true},
+                    {"url", "#Green"}
+                },
+                object
+                {
+                    {"name", "blue"},
+                    {"link", true},
+                    {"url", "#Blue"}
+                }
+            }
+        },
+        {"empty", false},
+        {"count", lambda{[&n](const std::string&) { return std::to_string(++n); }}},
+        {"array", list{"1", "2", "3"}},
+        {"a", object{{"b", object{{"c", true}}}}},
+        {"comments",
+            list
+            {
+                object
+                {
+                    {"name", "Joe"},
+                    {"body", "<html> should be escaped"}
+                },
+                object
+                {
+                    {"name", "Sam"},
+                    {"body", "{{mustache}} can be seen"}
+                },
+                object
+                {
+                    {"name", "New"},
+                    {"body", "break\nup"}
+                }
+            }
+        }
+    };
 
-    Mustache fmt(tmp);
+    mustache fmt(tmp);
 
     while (state.KeepRunning())
     {
         n = 0;
-        fmt.render(data);
+        fmt.render(dat);
     }
 }
 
