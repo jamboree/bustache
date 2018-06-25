@@ -40,6 +40,27 @@ namespace bustache { namespace detail
         }
     }
 
+    struct array_cursor
+    {
+        list_view arr;
+        std::uintptr_t state;
+
+        array_cursor(list_view arr) : arr(arr)
+        {
+            state = arr.begin_cursor();
+        }
+
+        ~array_cursor()
+        {
+            arr.end_cursor(state);
+        }
+
+        value_ptr next(value_holder& hold)
+        {
+            return arr.next(state, hold);
+        }
+    };
+
     template<class Sink>
     struct value_printer
     {
@@ -74,6 +95,28 @@ namespace bustache { namespace detail
                     literal(",");
                     visit(*this, *it);
                 }
+            }
+        }
+
+        void operator()(array_cursor cursor) const
+        {
+            {
+                value_holder hold;
+                if (auto pv = cursor.next(hold))
+                    visit(*this, *pv);
+                else
+                    return;
+            }
+            for (;;)
+            {
+                value_holder hold;
+                if (auto pv = cursor.next(hold))
+                {
+                    literal(",");
+                    visit(*this, *pv);
+                }
+                else
+                    break;
             }
         }
 
@@ -257,6 +300,28 @@ namespace bustache { namespace detail
                     expand_with_scope(obj);
                 else
                     expand();
+            }
+            return false;
+        }
+
+        bool operator()(list_view data) const
+        {
+            if (inverted)
+                return data.empty();
+
+            for (array_cursor cursor(data);;)
+            {
+                value_holder hold;
+                if (auto pv = cursor.next(hold))
+                {
+                    parent.cursor = pv;
+                    if (auto obj = get_object(pv))
+                        expand_with_scope(obj);
+                    else
+                        expand();
+                }
+                else
+                    break;
             }
             return false;
         }

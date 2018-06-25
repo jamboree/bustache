@@ -1,4 +1,4 @@
-{{ bustache }} [![Try it online][badge.wandbox]](https://wandbox.org/permlink/ks35kBAlO6qycK0z)
+{{ bustache }} [![Try it online][badge.wandbox]](https://wandbox.org/permlink/dMLrEGYLFlmvD3o4)
 ========
 
 C++11 implementation of [{{ mustache }}](http://mustache.github.io/), compliant with [spec](https://github.com/mustache/spec) v1.1.3.
@@ -21,6 +21,7 @@ C++11 implementation of [{{ mustache }}](http://mustache.github.io/), compliant 
 * HTML escaping *(configurable)*
 * Template inheritance *(extension)*
 * Customizable behavior on unresolved key
+* User-defined object and list
 
 ## Basics
 {{ mustache }} is a template language for text-replacing.
@@ -53,6 +54,10 @@ using lambda0f = std::function<format()>;
 using lambda1v = std::function<value(ast::content_list const&)>;
 using lambda1f = std::function<format(ast::content_list const&)>;
 
+// Non-owning UDT views.
+class object_view;
+class list_view;
+
 class value =
     variant
     <
@@ -67,6 +72,8 @@ class value =
       , lambda1v
       , lambda1f
       , object
+      , object_view
+      , list_view
     >;
 ```
 ### Format Object
@@ -117,7 +124,7 @@ Output directly to the `std::basic_ostream`.
 ```c++
 // in <bustache/model.hpp>
 template<class CharT, class Traits, class T, class Context,
-    std::enable_if_t<std::is_constructible<value::view, T>::value, bool> = true>
+    std::enable_if_t<std::is_constructible<value_view, T>::value, bool> = true>
 inline std::basic_ostream<CharT, Traits>&
 operator<<(std::basic_ostream<CharT, Traits>& out, manipulator<T, Context> const& manip)
 ```
@@ -144,7 +151,7 @@ Generate a `std::string` from a `manipulator`.
 ```c++
 // in <bustache/model.hpp>
 template<class T, class Context,
-    std::enable_if_t<std::is_constructible<value::view, T>::value, bool> = true>
+    std::enable_if_t<std::is_constructible<value_view, T>::value, bool> = true>
 inline std::string to_string(manipulator<T, Context> const& manip)
 ```
 #### Example
@@ -163,7 +170,7 @@ std::string txt = to_string(format(data, context, bustache::escape_html));
 template<class Sink, class UnresolvedHandler = default_unresolved_handler>
 inline void generate
 (
-    Sink& sink, format const& fmt, value::view const& data,
+    Sink& sink, format const& fmt, value_view const& data,
     option_type flag = normal, UnresolvedHandler&& f = {}
 )
 {
@@ -173,7 +180,7 @@ inline void generate
 template<class Sink, class Context, class UnresolvedHandler = default_unresolved_handler>
 void generate
 (
-    Sink& sink, format const& fmt, value::view const& data,
+    Sink& sink, format const& fmt, value_view const& data,
     Context const& context, option_type flag = normal, UnresolvedHandler&& f = {}
 )
 ```
@@ -204,7 +211,7 @@ template<class CharT, class Traits, class Context, class UnresolvedHandler = def
 void generate_ostream
 (
     std::basic_ostream<CharT, Traits>& out, format const& fmt,
-    value::view const& data, Context const& context,
+    value_view const& data, Context const& context,
     option_type flag, UnresolvedHandler&& f = {}
 );
 
@@ -212,7 +219,7 @@ template<class String, class Context, class UnresolvedHandler = default_unresolv
 void generate_string
 (
     String& out, format const& fmt,
-    value::view const& data, Context const& context,
+    value_view const& data, Context const& context,
     option_type flag, UnresolvedHandler&& f = {}
 );
 ```
@@ -232,9 +239,69 @@ One return-type is `bustache::value`, the other is `bustache::format`.
 Note that unlike other implementations, we pass a `bustache::ast::content_list` instead of a raw string.
 A `content_list` is a parsed list of AST nodes, you can make a new `content_list` out of the old one and give it to a `bustache::format`.
 
+### UDT
+Sometimes it's infeasible or inefficent to transform the whole user data to the JSON-like data model.
+Fortunately, {{ bustache }} allows users to use custom types in the data model, by implementing the required traits and using the corresponding views for the UDTs.
+#### Custom Object
+Implement `bustache::object_trait` for your object type `T`:
+```c++
+template<>
+struct object_trait<T>
+{
+    static value_ptr get(T const& self, std::string const& key, value_holder& hold);
+};
+```
+Use `bustache::object_view` to make a view to the object:
+```c++
+T data;
+object_view(data);
+```
+#### Custom List
+Implement `bustache::list_trait` for your list type `T`:
+```c++
+template<>
+struct list_trait<T>
+{
+    static bool empty(T const& self);
+    static std::uintptr_t begin_cursor(T const& self);
+    static value_ptr next(T const& self, std::uintptr_t& state, value_holder& hold);
+    static void end_cursor(T const& self, std::uintptr_t) noexcept {}
+};
+```
+Use `bustache::list_view` to make a view to the list:
+```c++
+T data;
+list_view(data);
+```
+#### Use of value_holder
+Note that both `object_trait<T>::get` and `list_trait<T>::next` take a `bustache::value_holder&` and return a `bustache::value_ptr`.
+The value that `value_ptr` refers to must outlive the pointer, and that's what `value_holder` offers - to hold the value.
+
+To return a local value:
+```c++
+return hold(10);
+```
+To return an `object_view` to some data member:
+```c++
+return hold(object_view(self.obj));
+```
+To return a local object:
+```c++
+return hold.object(obj); // obj is copied.
+```
+To return a local list:
+```c++
+return hold.list(lst); // lst is copied.
+```
+
+It's not always necessary to use `value_holder`. If you know the data outlives the returned `value_ptr`, you can do something like:
+```c++
+return value_view(self.data).get_pointer();
+```
+
 ### Error Handling
 The constructor of `bustache::format` may throw `bustache::format_error` if the parsing fails.
-```
+```c++
 class format_error : public std::runtime_error
 {
 public:

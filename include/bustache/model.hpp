@@ -40,6 +40,14 @@ namespace bustache
     template<class T>
     struct object_trait;
 
+    // SYNOPSIS
+    // --------
+    // template<>
+    // struct object_trait<T>
+    // {
+    //     static value_ptr get(T const& self, std::string const& key, value_holder& hold);
+    // };
+
     struct object_view
     {
         object_view() noexcept : _data(), _get(&empty_get) {}
@@ -56,9 +64,9 @@ namespace bustache
             return !!_data;
         }
 
-        value_ptr get(std::string const& key, value_holder& any) const
+        value_ptr get(std::string const& key, value_holder& hold) const
         {
-            return _get(_data, key, any);
+            return _get(_data, key, hold);
         }
 
     private:
@@ -77,6 +85,88 @@ namespace bustache
         value_ptr(*_get)(void const*, std::string const&, value_holder&);
     };
 
+    template<class T>
+    struct list_trait;
+
+    // SYNOPSIS
+    // --------
+    // template<>
+    // struct list_trait<T>
+    // {
+    //     static bool empty(T const& self);
+    //     static std::uintptr_t begin_cursor(T const& self);
+    //     static value_ptr next(T const& self, std::uintptr_t& state, value_holder& hold);
+    //     static void end_cursor(T const& self, std::uintptr_t) noexcept {}
+    // };
+
+    struct list_view
+    {
+        template<class T>
+        explicit list_view(T const& arr) noexcept
+          : _vptr(&impl<T>::table), _data(&arr)
+        {}
+
+        list_view(array const& arr) noexcept;
+
+        bool empty() const
+        {
+            return _vptr->_empty(_data);
+        }
+
+        std::uintptr_t begin_cursor() const
+        {
+            return _vptr->_begin_cursor(_data);
+        }
+
+        value_ptr next(std::uintptr_t& state, value_holder& hold) const
+        {
+            return _vptr->_next(_data, state, hold);
+        }
+
+        void end_cursor(std::uintptr_t state) noexcept
+        {
+            _vptr->_end_cursor(_data, state);
+        }
+
+    private:
+        struct vtable
+        {
+            value_ptr(*_next)(void const*, std::uintptr_t&, value_holder&);
+            std::uintptr_t(*_begin_cursor)(void const*);
+            void(*_end_cursor)(void const*, std::uintptr_t) noexcept;
+            bool(*_empty)(void const*);
+        };
+
+        template<class T>
+        struct impl
+        {
+            static value_ptr next(void const* p, std::uintptr_t& state, value_holder& hold)
+            {
+                return list_trait<T>::next(*static_cast<T const*>(p), state, hold);
+            }
+
+            static std::uintptr_t begin_cursor(void const* p)
+            {
+                return list_trait<T>::begin_cursor(*static_cast<T const*>(p));
+            }
+
+            static void end_cursor(void const* p, std::uintptr_t state) noexcept
+            {
+                list_trait<T>::end_cursor(*static_cast<T const*>(p), state);
+            }
+
+            static bool empty(void const* p)
+            {
+                return list_trait<T>::empty(*static_cast<T const*>(p));
+            }
+
+            static constexpr vtable table = {&next, &begin_cursor, &end_cursor, &empty};
+        };
+
+        vtable const* _vptr;
+        void const* _data;
+    };
+
 #define BUSTACHE_VALUE(X, D)                                                    \
     X(0, std::nullptr_t, D)                                                     \
     X(1, bool, D)                                                               \
@@ -90,6 +180,7 @@ namespace bustache
     X(9, lambda1f, D)                                                           \
     X(10, object, D)                                                            \
     X(11, object_view, D)                                                       \
+    X(12, list_view, D)                                                         \
 /***/
 
     namespace detail
@@ -116,6 +207,7 @@ namespace bustache
             static lambda1f match(lambda1f);
             static object match(object);
             static object_view match(object_view);
+            static list_view match(list_view);
         };
 
         union value_union
@@ -166,6 +258,12 @@ namespace bustache
         struct object_holder
         {
             object_view view;
+            holder_storage store;
+        };
+
+        struct list_holder
+        {
+            list_view view;
             holder_storage store;
         };
     }
@@ -252,7 +350,6 @@ namespace bustache
         template<class T, class U = decltype(type_matcher::match(std::declval<T>()))>
         value_ptr operator()(T&& other)
         {
-            reset();
             auto p = new(_storage) U(std::forward<T>(other));
             _destroy = &destroy<U>;
             return {switcher::index(detail::type<U>{}), p};
@@ -262,22 +359,21 @@ namespace bustache
         value_ptr object(T obj)
         {
             using trait = detail::holder_trait<T>;
-            reset();
             _obj.view = object_view(trait::create(_obj.store, std::move(obj)));
-            _destroy = &trait::destroy<detail::object_holder>;
+            _destroy = &trait::template destroy<detail::object_holder>;
             return {switcher::index(detail::type<object_view>{}), &_obj.view};
         }
 
-    private:
-        void reset() noexcept
+        template<class T>
+        value_ptr list(T lst)
         {
-            if (_destroy)
-            {
-                _destroy(_storage);
-                _destroy = nullptr;
-            }
+            using trait = detail::holder_trait<T>;
+            _lst.view = list_view(trait::create(_lst.store, std::move(lst)));
+            _destroy = &trait::template destroy<detail::list_holder>;
+            return {switcher::index(detail::type<list_view>{}), &_lst.view};
         }
 
+    private:
         template<class T>
         static void destroy(void* p) noexcept
         {
@@ -290,6 +386,7 @@ namespace bustache
             char _storage[1];
             detail::value_union _union;
             detail::object_holder _obj;
+            detail::list_holder _lst;
         };
     };
 
