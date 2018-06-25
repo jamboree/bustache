@@ -54,7 +54,7 @@ namespace bustache
     void generate_ostream
     (
         std::ostream& out, format const& fmt,
-        value_view const& data, detail::any_context const& context,
+        value_view const& data, context_view const& context,
         option_type flag, default_unresolved_handler&&
     );
 }

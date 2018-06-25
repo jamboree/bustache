@@ -1,5 +1,5 @@
 /*//////////////////////////////////////////////////////////////////////////////
-    Copyright (c) 2014-2016 Jamboree
+    Copyright (c) 2014-2018 Jamboree
 
     Distributed under the Boost Software License, Version 1.0. (See accompanying
     file LICENSE_1_0.txt or copy at http://www.boost.org/LICENSE_1_0.txt)
@@ -15,9 +15,33 @@ namespace bustache
 {
     struct format;
     
-    using option_type = bool;
-    constexpr option_type normal = false;
-    constexpr option_type escape_html = true;
+    enum option_type : std::uint8_t
+    {
+        normal, escape_html
+    };
+    
+    struct no_context_t {};
+
+    static constexpr no_context_t no_context {};
+
+    template<class T>
+    struct context_trait
+    {
+        static format const* get(T const& self, std::string const& key)
+        {
+            auto it = self.find(key);
+            return it == self.end() ? nullptr : &it->second;
+        }
+    };
+
+    template<>
+    struct context_trait<no_context_t>
+    {
+        static format const* get(no_context_t, std::string const&)
+        {
+            return nullptr;
+        }
+    };
 
     template<class T, class Context>
     struct manipulator
@@ -26,28 +50,6 @@ namespace bustache
         T const& data;
         Context const& context;
         option_type const flag;
-    };
-
-    struct no_context
-    {
-        using value_type = std::pair<std::string const, format>;
-        using iterator = value_type const*;
-        
-        constexpr iterator find(std::string const&) const
-        {
-            return nullptr;
-        }
-        
-        constexpr iterator end() const
-        {
-            return nullptr;
-        }
-
-        static no_context const& dummy()
-        {
-            static no_context const _{};
-            return _;
-        }
     };
 
     enum error_type
@@ -66,7 +68,7 @@ namespace bustache
     public:
         explicit format_error(error_type err);
 
-        error_type code() const
+        error_type code() const noexcept
         {
             return _err;
         }
@@ -118,10 +120,10 @@ namespace bustache
         }
 
         template<class T>
-        manipulator<T, no_context>
+        manipulator<T, no_context_t>
         operator()(T const& data, option_type flag = normal) const
         {
-            return {*this, data, no_context::dummy(), flag};
+            return {*this, data, no_context, flag};
         }
         
         template<class T, class Context>
@@ -139,7 +141,7 @@ namespace bustache
     private:
         
         void init(char const* begin, char const* end);
-        std::size_t text_size() const;
+        std::size_t text_size() const noexcept;
         void copy_text(std::size_t n);
 
         ast::content_list _contents;

@@ -507,10 +507,9 @@ namespace bustache { namespace detail
         
         void operator()(ast::partial const& partial)
         {
-            auto it = context.find(partial.key);
-            if (it != context.end())
+            if (auto p = context_trait<Context>::get(context, partial.key))
             {
-                if (it->second.contents().empty())
+                if (p->contents().empty())
                     return;
 
                 auto old_size = indent.size();
@@ -519,7 +518,7 @@ namespace bustache { namespace detail
                 needs_indent |= !partial.indent.empty();
                 if (!partial.overriders.empty())
                     chain.push_back(&partial.overriders);
-                for (auto const& content : it->second.contents())
+                for (auto const& content : p->contents())
                     visit(*this, content);
                 chain.resize(old_chain);
                 indent.resize(old_size);
@@ -548,7 +547,7 @@ namespace bustache
         option_type flag = normal, UnresolvedHandler&& f = {}
     )
     {
-        generate(sink, fmt, data, no_context::dummy(), flag, std::forward<UnresolvedHandler>(f));
+        generate(sink, fmt, data, no_context, flag, std::forward<UnresolvedHandler>(f));
     }
     
     template<class Sink, class Context, class UnresolvedHandler = default_unresolved_handler>
@@ -562,7 +561,7 @@ namespace bustache
         detail::content_visitor<Sink, Context, UnresolvedHandler> visitor
         {
             scope, data.get_pointer(), sink, context,
-            std::forward<UnresolvedHandler>(f), flag
+            std::forward<UnresolvedHandler>(f), bool(flag)
         };
         for (auto const& content : fmt.contents())
             visit(visitor, content);

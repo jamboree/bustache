@@ -9,7 +9,6 @@
 
 #include <bustache/format.hpp>
 #include <bustache/detail/variant.hpp>
-#include <bustache/detail/any_context.hpp>
 #include <vector>
 #include <functional>
 #include <boost/unordered_map.hpp>
@@ -185,12 +184,18 @@ namespace bustache
 
     namespace detail
     {
+        template<class T>
+        struct check_bool;
+
+        template<>
+        struct check_bool<bool> { using type = bool; };
+
         struct value_type_matcher
         {
             static std::nullptr_t match(std::nullptr_t);
             static int match(int);
             // Prevent unintended bool conversion.
-            template<class Bool, typename std::enable_if<std::is_same<Bool, bool>::value, bool>::type = true>
+            template<class Bool, typename check_bool<Bool>::type = true>
             static bool match(Bool);
             static double match(double);
             static std::string match(std::string);
@@ -424,6 +429,38 @@ namespace bustache
         }
     };
 
+    struct context_view
+    {
+        template<class Context>
+        context_view(Context const& context) noexcept
+          : _data(&context), _get(&get_impl<Context>)
+        {}
+
+        format const* get(std::string const& key) const
+        {
+            return _get(_data, key);
+        }
+
+    private:
+        template<class T>
+        static format const* get_impl(void const* p, std::string const& key)
+        {
+            return context_trait<T>::get(*static_cast<T const*>(p), key);
+        }
+
+        void const* _data;
+        format const* (*_get)(void const*, std::string const&);
+    };
+
+    template<>
+    struct context_trait<context_view>
+    {
+        static format const* get(context_view self, std::string const& key)
+        {
+            return self.get(key);
+        }
+    };
+
     // Forward decl only.
     template<class CharT, class Traits, class Context, class UnresolvedHandler = default_unresolved_handler>
     void generate_ostream
@@ -447,7 +484,7 @@ namespace bustache
     inline std::basic_ostream<CharT, Traits>&
     operator<<(std::basic_ostream<CharT, Traits>& out, manipulator<T, Context> const& manip)
     {
-        generate_ostream(out, manip.fmt, manip.data, detail::any_context(manip.context), manip.flag);
+        generate_ostream(out, manip.fmt, manip.data, context_view(manip.context), manip.flag);
         return out;
     }
 
@@ -456,7 +493,7 @@ namespace bustache
     inline std::string to_string(manipulator<T, Context> const& manip)
     {
         std::string ret;
-        generate_string(ret, manip.fmt, manip.data, detail::any_context(manip.context), manip.flag);
+        generate_string(ret, manip.fmt, manip.data, context_view(manip.context), manip.flag);
         return ret;
     }
 }

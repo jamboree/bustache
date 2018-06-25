@@ -1,5 +1,5 @@
 /*//////////////////////////////////////////////////////////////////////////////
-    Copyright (c) 2017 Jamboree
+    Copyright (c) 2017-2018 Jamboree
 
     Distributed under the Boost Software License, Version 1.0. (See accompanying
     file LICENSE_1_0.txt or copy at http://www.boost.org/LICENSE_1_0.txt)
@@ -31,7 +31,7 @@ TEST_CASE("unresolved")
     {
         CHECK_THROWS_WITH
         (
-            generate_string(out, fmt, empty, no_context::dummy(), normal, throw_on_unresolved),
+            generate_string(out, fmt, empty, no_context, normal, throw_on_unresolved),
             "unresolved key: unresolved"
         );
 
@@ -40,7 +40,7 @@ TEST_CASE("unresolved")
 
     SECTION("default value")
     {
-        generate_string(out, fmt, empty, no_context::dummy(), normal, banana_on_unresolved);
+        generate_string(out, fmt, empty, no_context, normal, banana_on_unresolved);
 
         CHECK(out == "before-banana-after");
     }

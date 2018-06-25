@@ -1,4 +1,4 @@
-{{ bustache }} [![Try it online][badge.wandbox]](https://wandbox.org/permlink/4eWwFzAucIdE7MVB)
+{{ bustache }} [![Try it online][badge.wandbox]](https://wandbox.org/permlink/0sr7qp489ulhYVCd)
 ========
 
 C++11 implementation of [{{ mustache }}](http://mustache.github.io/), compliant with [spec](https://github.com/mustache/spec) v1.1.3.
@@ -114,7 +114,16 @@ template <typename T, typename Context>
 manipulator<T, Context>
 operator()(T const& data, Context const& context, option_type flag = normal) const;
 ```
-* `Context` is any associative container `Map<std::string, bustache::format>`, which is referenced by _Partials_.
+* `Context` is the lookup-context used by _Partials_.
+You can implement `bustache::context_trait<T>` for your custom context:
+```c++
+template<>
+struct context_trait<T>
+{
+    static format const* get(T const& self, std::string const& key);
+};
+```
+`context_trait` has default implementation for `Map<std::string, bustache::format>`, where `Map` has interface like `map` or `unordered_map`.
 * `option_type` provides 2 options: `normal` and `escape_html`, if `normal` is chosen, there's no difference between `{{Tag}}` and `{{{Tag}}}`, the text won't be escaped in both cases.
 
 ### Stream-based Output

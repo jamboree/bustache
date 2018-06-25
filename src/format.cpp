@@ -1,5 +1,5 @@
 /*//////////////////////////////////////////////////////////////////////////////
-    Copyright (c) 2014-2016 Jamboree
+    Copyright (c) 2014-2018 Jamboree
 
     Distributed under the Boost Software License, Version 1.0. (See accompanying
     file LICENSE_1_0.txt or copy at http://www.boost.org/LICENSE_1_0.txt)
@@ -11,17 +11,21 @@
 
 namespace bustache { namespace parser { namespace
 {
-    using delim = std::pair<std::string, std::string>;
+    struct delim
+    {
+        std::string open;
+        std::string close;
+    };
 
     template<class I>
-    inline void skip(I& i, I e)
+    inline void skip(I& i, I e) noexcept
     {
         while (i != e && std::isspace(*i))
             ++i;
     }
 
     template<class I>
-    inline bool parse_char(I& i, I e, char c)
+    inline bool parse_char(I& i, I e, char c) noexcept
     {
         if (i != e && *i == c)
         {
@@ -32,7 +36,7 @@ namespace bustache { namespace parser { namespace
     }
 
     template<class I>
-    inline bool parse_lit(I& i, I e, boost::string_ref const& str)
+    inline bool parse_lit(I& i, I e, boost::string_ref str) noexcept
     {
         I i0 = i;
         for (char c : str)
@@ -58,7 +62,7 @@ namespace bustache { namespace parser { namespace
             if (!suffix || parse_char(i, e, '}'))
             {
                 skip(i, e);
-                if (parse_lit(i, e, d.second))
+                if (parse_lit(i, e, d.close))
                 {
                     attr.assign(i0, i1);
                     if (i0 == i1)
@@ -77,18 +81,18 @@ namespace bustache { namespace parser { namespace
     (
         I& i0, I& i, I e, delim& d, bool& pure,
         boost::string_ref& text, ast::content& attr,
-        boost::string_ref const& section
+        boost::string_ref section
     );
 
     template<class I>
     void parse_contents
     (
         I i0, I& i, I e, delim& d, bool& pure,
-        ast::content_list& attr, boost::string_ref const& section
+        ast::content_list& attr, boost::string_ref section
     );
 
     template<class I>
-    I process_pure(I& i, I e, bool& pure)
+    I process_pure(I& i, I e, bool& pure) noexcept
     {
         I i0 = i;
         if (pure)
@@ -143,7 +147,7 @@ namespace bustache { namespace parser { namespace
     template<class I>
     void expect_comment(I& i, I e, delim& d)
     {
-        while (!parse_lit(i, e, d.second))
+        while (!parse_lit(i, e, d.close))
         {
             if (i == e)
                 throw format_error(error_delim);
@@ -164,7 +168,7 @@ namespace bustache { namespace parser { namespace
         }
         if (i == e)
             throw format_error(error_baddelim);
-        d.first.assign(i0, i);
+        d.open.assign(i0, i);
         skip(i, e);
         i0 = i;
         I i1 = i;
@@ -190,9 +194,9 @@ namespace bustache { namespace parser { namespace
             throw format_error(error_baddelim);
         std::string new_close(i0, i1);
         skip(++i, e);
-        if (!parse_lit(i, e, d.second))
+        if (!parse_lit(i, e, d.close))
             throw format_error(error_delim);
-        d.second = std::move(new_close);
+        d.close = std::move(new_close);
     }
 
     struct tag_result
@@ -206,7 +210,7 @@ namespace bustache { namespace parser { namespace
     tag_result expect_tag
     (
         I& i, I e, delim& d, bool& pure,
-        ast::content& attr, boost::string_ref const& section
+        ast::content& attr, boost::string_ref section
     )
     {
         skip(i, e);
@@ -229,7 +233,7 @@ namespace bustache { namespace parser { namespace
             if (section.empty() || !parse_lit(i, e, section))
                 throw format_error(error_section);
             skip(i, e);
-            if (!parse_lit(i, e, d.second))
+            if (!parse_lit(i, e, d.close))
                 throw format_error(error_delim);
             ret.check_standalone = pure;
             ret.is_end_section = true;
@@ -295,7 +299,7 @@ namespace bustache { namespace parser { namespace
     (
         I& i0, I& i, I e, delim& d, bool& pure,
         boost::string_ref& text, ast::content& attr,
-        boost::string_ref const& section
+        boost::string_ref section
     )
     {
         for (I i1 = i; i != e;)
@@ -310,7 +314,7 @@ namespace bustache { namespace parser { namespace
             else
             {
                 I i2 = i;
-                if (parse_lit(i, e, d.first))
+                if (parse_lit(i, e, d.open))
                 {
                     tag_result tag(expect_tag(i, e, d, pure, attr, section));
                     text = boost::string_ref(i0, i1 - i0);
@@ -361,7 +365,7 @@ namespace bustache { namespace parser { namespace
     void parse_contents
     (
         I i0, I& i, I e, delim& d, bool& pure,
-        ast::content_list& attr, boost::string_ref const& section
+        ast::content_list& attr, boost::string_ref section
     )
     {
         for (;;)
@@ -381,7 +385,7 @@ namespace bustache { namespace parser { namespace
     template<class I>
     inline void parse_start(I& i, I e, ast::content_list& attr)
     {
-        delim d("{{", "}}");
+        delim d{"{{", "}}"};
         bool pure = true;
         parse_contents(i, i, e, d, pure, attr, {});
     }
@@ -389,7 +393,7 @@ namespace bustache { namespace parser { namespace
 
 namespace bustache
 {
-    static char const* get_error_string(error_type err)
+    static char const* get_error_string(error_type err) noexcept
     {
         switch (err)
         {
@@ -419,14 +423,12 @@ namespace bustache
 
     struct accum_size
     {
-        using result_type = std::size_t;
-
-        std::size_t operator()(ast::text const& text) const
+        std::size_t operator()(ast::text const& text) const noexcept
         {
             return text.size();
         }
 
-        std::size_t operator()(ast::section const& section) const
+        std::size_t operator()(ast::section const& section) const noexcept
         {
             std::size_t n = 0;
             for (auto const& content : section.contents)
@@ -435,13 +437,13 @@ namespace bustache
         }
 
         template <typename T>
-        std::size_t operator()(T const&) const
+        std::size_t operator()(T const&) const noexcept
         {
             return 0;
         }
     };
 
-    std::size_t format::text_size() const
+    std::size_t format::text_size() const noexcept
     {
         accum_size accum;
         std::size_t n = 0;
@@ -452,11 +454,9 @@ namespace bustache
 
     struct copy_text_visitor
     {
-        using result_type = void;
-
         char* data;
 
-        void operator()(ast::text& text)
+        void operator()(ast::text& text) noexcept
         {
             auto n = text.size();
             std::memcpy(data, text.data(), n);
@@ -464,14 +464,14 @@ namespace bustache
             data += n;
         }
 
-        void operator()(ast::section& section)
+        void operator()(ast::section& section) noexcept
         {
             for (auto& content : section.contents)
                 visit(*this, content);
         }
 
         template <typename T>
-        void operator()(T const&) const {}
+        void operator()(T const&) const noexcept {}
     };
 
     void format::copy_text(std::size_t n)

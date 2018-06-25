@@ -712,3 +712,15 @@ TEST_CASE("lambdas")
         ==
         "<>");
 }
+
+// This is not really part of the spec.
+TEST_CASE("special-values")
+{
+    auto const fmt = "{{.}}"_fmt;
+
+    CHECK(to_string(fmt(true)) == "true");
+    CHECK(to_string(fmt(false)) == "false");
+    CHECK(to_string(fmt(array{1, 2, 3})) == "1,2,3");
+    CHECK(to_string(fmt(object{})) == "[Object]");
+    CHECK(to_string(fmt(lambda1f())) == "[Function]");
+}
