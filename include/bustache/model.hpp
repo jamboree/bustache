@@ -185,17 +185,13 @@ namespace bustache
 
     namespace detail
     {
-        struct bool_
-        {
-            bool_(bool);
-        };
-
         struct value_type_matcher
         {
             static std::nullptr_t match(std::nullptr_t);
             static int match(int);
-            // Use a fake bool_ to prevent unintended bool conversion.
-            static bool match(detail::bool_);
+            // Prevent unintended bool conversion.
+            template<class Bool, typename std::enable_if<std::is_same<Bool, bool>::value, bool>::type = true>
+            static bool match(Bool);
             static double match(double);
             static std::string match(std::string);
             // Need to override for `char const*`, otherwise `bool` will be chosen.
