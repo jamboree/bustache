@@ -102,29 +102,29 @@ namespace bustache
     {
         template<class T>
         explicit list_view(T const& arr) noexcept
-          : _vptr(&impl<T>::table), _data(&arr)
+          : _vp(&impl<T>::table), _data(&arr)
         {}
 
         list_view(array const& arr) noexcept;
 
         bool empty() const
         {
-            return _vptr->_empty(_data);
+            return _vp->_empty(_data);
         }
 
         std::uintptr_t begin_cursor() const
         {
-            return _vptr->_begin_cursor(_data);
+            return _vp->_begin_cursor(_data);
         }
 
         value_ptr next(std::uintptr_t& state, value_holder& hold) const
         {
-            return _vptr->_next(_data, state, hold);
+            return _vp->_next(_data, state, hold);
         }
 
         void end_cursor(std::uintptr_t state) noexcept
         {
-            _vptr->_end_cursor(_data, state);
+            _vp->_end_cursor(_data, state);
         }
 
     private:
@@ -162,7 +162,7 @@ namespace bustache
             static constexpr vtable table = {&next, &begin_cursor, &end_cursor, &empty};
         };
 
-        vtable const* _vptr;
+        vtable const* _vp; // Note: GCC cannot have `_vptr`.
         void const* _data;
     };
 

@@ -1,4 +1,4 @@
-{{ bustache }} [![Try it online][badge.wandbox]](https://wandbox.org/permlink/0sr7qp489ulhYVCd)
+{{ bustache }} [![Try it online][badge.wandbox]](https://wandbox.org/permlink/HC4GG9QxCw6dsygF)
 ========
 
 C++11 implementation of [{{ mustache }}](http://mustache.github.io/), compliant with [spec](https://github.com/mustache/spec) v1.1.3.
