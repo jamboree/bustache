@@ -234,9 +234,9 @@ TEST_CASE("variant-valuess-by-exception")
 TEST_CASE("variant-visit")
 {
     Visitor v;
-    CHECK(visit(v, Var{}) == 0);
-    CHECK(visit(v, Var{true}) == 0);
-    CHECK(visit(v, Var{0}) == 1);
-    CHECK(visit(v, Var{A{}}) == 2);
-    CHECK(visit(v, Var{BadCopy{}}) == 3);
+    CHECK(bustache::visit(v, Var{}) == 0);
+    CHECK(bustache::visit(v, Var{true}) == 0);
+    CHECK(bustache::visit(v, Var{0}) == 1);
+    CHECK(bustache::visit(v, Var{A{}}) == 2);
+    CHECK(bustache::visit(v, Var{BadCopy{}}) == 3);
 }
