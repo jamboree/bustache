@@ -156,14 +156,14 @@ namespace bustache
     inline auto apply_visitor(Visitor&& visitor, variant_base<Var>& v) ->
         decltype(Var::switcher::common_ret((void*)nullptr, visitor))
     {
-        return visit(std::forward<Visitor>(visitor), v);
+        return bustache::visit(std::forward<Visitor>(visitor), v);
     }
 
     template<class Visitor, class Var>
     inline auto apply_visitor(Visitor&& visitor, variant_base<Var> const& v) ->
         decltype(Var::switcher::common_ret((void const*)nullptr, visitor))
     {
-        return visit(std::forward<Visitor>(visitor), v);
+        return bustache::visit(std::forward<Visitor>(visitor), v);
     }
 
     template<class T, class Var>

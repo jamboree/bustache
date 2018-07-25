@@ -89,11 +89,11 @@ namespace bustache { namespace detail
             auto it = data.begin(), end = data.end();
             if (it != end)
             {
-                visit(*this, *it);
+                bustache::visit(*this, *it);
                 while (++it != end)
                 {
                     literal(",");
-                    visit(*this, *it);
+                    bustache::visit(*this, *it);
                 }
             }
         }
@@ -103,7 +103,7 @@ namespace bustache { namespace detail
             {
                 value_holder hold;
                 if (auto pv = cursor.next(hold))
-                    visit(*this, *pv);
+                    bustache::visit(*this, *pv);
                 else
                     return;
             }
@@ -113,7 +113,7 @@ namespace bustache { namespace detail
                 if (auto pv = cursor.next(hold))
                 {
                     literal(",");
-                    visit(*this, *pv);
+                    bustache::visit(*this, *pv);
                 }
                 else
                     break;
@@ -127,12 +127,12 @@ namespace bustache { namespace detail
 
         void operator()(lambda0v const& data) const
         {
-            visit(*this, data());
+            bustache::visit(*this, data());
         }
 
         void operator()(lambda1v const& data) const
         {
-            visit(*this, data({}));
+            bustache::visit(*this, data({}));
         }
 
         template<class Sig>
@@ -254,7 +254,7 @@ namespace bustache { namespace detail
         {
             auto fmt(data());
             for (auto const& content : fmt.contents())
-                visit(parent, content);
+                bustache::visit(parent, content);
         }
     };
 
@@ -270,7 +270,7 @@ namespace bustache { namespace detail
         void expand() const
         {
             for (auto const& content : contents)
-                visit(parent, content);
+                bustache::visit(parent, content);
         }
 
         void expand_with_scope(object_view data) const
@@ -355,7 +355,7 @@ namespace bustache { namespace detail
 
         bool operator()(lambda0v const& data) const
         {
-            return inverted ? false : visit(*this, data());
+            return inverted ? false : bustache::visit(*this, data());
         }
 
         bool operator()(lambda0f const& data) const
@@ -364,14 +364,14 @@ namespace bustache { namespace detail
             {
                 auto fmt(data());
                 for (auto const& content : fmt.contents())
-                    visit(parent, content);
+                    bustache::visit(parent, content);
             }
             return false;
         }
 
         bool operator()(lambda1v const& data) const
         {
-            return inverted ? false : visit(*this, data(contents));
+            return inverted ? false : bustache::visit(*this, data(contents));
         }
 
         bool operator()(lambda1f const& data) const
@@ -380,7 +380,7 @@ namespace bustache { namespace detail
             {
                 auto fmt(data(contents));
                 for (auto const& content : fmt.contents())
-                    visit(parent, content);
+                    bustache::visit(parent, content);
             }
             return false;
         }
@@ -421,7 +421,7 @@ namespace bustache { namespace detail
             {
                 *this, escaping && !variable.tag
             };
-            visit(visitor, val);
+            bustache::visit(visitor, val);
         }
 
         void handle_section(ast::section const& section, value_view val)
@@ -433,10 +433,10 @@ namespace bustache { namespace detail
                 *this, section.contents, inverted
             };
             cursor = val.get_pointer();
-            if (visit(visitor, val))
+            if (bustache::visit(visitor, val))
             {
                 for (auto const& content : section.contents)
-                    visit(*this, content);
+                    bustache::visit(*this, content);
             }
             cursor = old_cursor;
         }
@@ -519,7 +519,7 @@ namespace bustache { namespace detail
                 if (!partial.overriders.empty())
                     chain.push_back(&partial.overriders);
                 for (auto const& content : p->contents())
-                    visit(*this, content);
+                    bustache::visit(*this, content);
                 chain.resize(old_chain);
                 indent.resize(old_size);
             }
@@ -531,7 +531,7 @@ namespace bustache { namespace detail
             if (!pc)
                 pc = &block.contents;
             for (auto const& content : *pc)
-                visit(*this, content);
+                bustache::visit(*this, content);
         }
 
         void operator()(ast::null) const {} // never called
@@ -564,7 +564,7 @@ namespace bustache
             std::forward<UnresolvedHandler>(f), bool(flag)
         };
         for (auto const& content : fmt.contents())
-            visit(visitor, content);
+            bustache::visit(visitor, content);
     }
 }
 
