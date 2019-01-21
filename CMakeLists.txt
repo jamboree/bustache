@@ -6,6 +6,7 @@ list(APPEND CMAKE_MODULE_PATH "${CMAKE_SOURCE_DIR}/cmake/Modules/")
 project(bustache VERSION 1.0.0 LANGUAGES CXX)
 
 option(BUSTACHE_ENABLE_TESTING "Enable testing of the bustache library." OFF)
+option(EXPORT_BUILD_DIR "Export build directory using CMake (enables external use without install)" OFF)
 
 # Set the default CMAKE_BUILD_TYPE to Release.
 # This should be done before the project command since the latter can set
@@ -70,10 +71,14 @@ install(TARGETS ${PROJECT_NAME} EXPORT bustache-config
 )
 install(DIRECTORY include/ DESTINATION include)
 install(EXPORT bustache-config NAMESPACE bustache:: DESTINATION share/bustache/cmake)
-
-export(TARGETS ${PROJECT_NAME} FILE bustache-config.cmake)
+export(EXPORT bustache-config NAMESPACE bustache::)
 
 if (BUSTACHE_ENABLE_TESTING)
     enable_testing()
     add_subdirectory(test)
 endif()
+
+if (EXPORT_BUILD_DIR)
+    export(PACKAGE ${PROJECT_NAME})
+endif()
+
