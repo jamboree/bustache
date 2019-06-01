@@ -1,0 +1,7 @@
+
+# Find all dependencies.
+include(CMakeFindDependencyMacro)
+find_dependency(Boost QUIET REQUIRED)
+
+# Import targets.
+include("${CMAKE_CURRENT_LIST_DIR}/@PROJECT_NAME@-targets.cmake")

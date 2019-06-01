@@ -64,14 +64,16 @@ set_target_properties(${PROJECT_NAME} PROPERTIES
 )
 
 # 'make install' to the correct location
-install(TARGETS ${PROJECT_NAME} EXPORT bustache-config
+install(TARGETS ${PROJECT_NAME} EXPORT bustache-targets
     ARCHIVE  DESTINATION lib
     LIBRARY  DESTINATION lib
     RUNTIME  DESTINATION bin  # This is for Windows
 )
 install(DIRECTORY include/ DESTINATION include)
-install(EXPORT bustache-config NAMESPACE bustache:: DESTINATION share/bustache/cmake)
-export(EXPORT bustache-config NAMESPACE bustache::)
+install(EXPORT bustache-targets NAMESPACE bustache:: DESTINATION share/bustache/cmake)
+export(EXPORT bustache-targets NAMESPACE bustache::)
+configure_file(cmake/bustache-config.cmake.in bustache-config.cmake @ONLY)
+install(FILES "${PROJECT_BINARY_DIR}/bustache-config.cmake" DESTINATION share/bustache/cmake)
 
 if (BUSTACHE_ENABLE_TESTING)
     enable_testing()
