@@ -75,6 +75,10 @@ export(EXPORT bustache-targets NAMESPACE bustache::)
 configure_file(cmake/bustache-config.cmake.in bustache-config.cmake @ONLY)
 install(FILES "${PROJECT_BINARY_DIR}/bustache-config.cmake" DESTINATION share/bustache/cmake)
 
+include(CMakePackageConfigHelpers)
+write_basic_package_version_file(bustache-config-version.cmake VERSION ${PROJECT_VERSION} COMPATIBILITY SameMajorVersion)
+install(FILES "${PROJECT_BINARY_DIR}/bustache-config-version.cmake" DESTINATION share/bustache/cmake)
+
 if (BUSTACHE_ENABLE_TESTING)
     enable_testing()
     add_subdirectory(test)
