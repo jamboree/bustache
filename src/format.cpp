@@ -66,14 +66,14 @@ namespace bustache { namespace parser { namespace
                 {
                     attr.assign(i0, i1);
                     if (i0 == i1)
-                        throw format_error(error_badkey);
+                        throw error_badkey;
                     return;
                 }
             }
             if (i != e)
                 ++i;
         }
-        throw format_error(error_badkey);
+        throw error_badkey;
     }
 
     template<class I>
@@ -150,7 +150,7 @@ namespace bustache { namespace parser { namespace
         while (!parse_lit(i, e, d.close))
         {
             if (i == e)
-                throw format_error(error_delim);
+                throw error_delim;
             ++i;
         }
     }
@@ -167,7 +167,7 @@ namespace bustache { namespace parser { namespace
             ++i;
         }
         if (i == e)
-            throw format_error(error_baddelim);
+            throw error_baddelim;
         d.open.assign(i0, i);
         skip(i, e);
         i0 = i;
@@ -175,7 +175,7 @@ namespace bustache { namespace parser { namespace
         for (;; ++i)
         {
             if (i == e)
-                throw format_error(error_set_delim);
+                throw error_set_delim;
             if (*i == '=')
             {
                 i1 = i;
@@ -186,16 +186,16 @@ namespace bustache { namespace parser { namespace
                 i1 = i;
                 skip(++i, e);
                 if (i == e || *i != '=')
-                    throw format_error(error_set_delim);
+                    throw error_set_delim;
                 break;
             }
         }
         if (i0 == i1)
-            throw format_error(error_baddelim);
+            throw error_baddelim;
         std::string new_close(i0, i1);
         skip(++i, e);
         if (!parse_lit(i, e, d.close))
-            throw format_error(error_delim);
+            throw error_delim;
         d.close = std::move(new_close);
     }
 
@@ -215,7 +215,7 @@ namespace bustache { namespace parser { namespace
     {
         skip(i, e);
         if (i == e)
-            throw format_error(error_badkey);
+            throw error_badkey;
         tag_result ret{};
         switch (*i)
         {
@@ -231,10 +231,10 @@ namespace bustache { namespace parser { namespace
         case '/':
             skip(++i, e);
             if (section.empty() || !parse_lit(i, e, section))
-                throw format_error(error_section);
+                throw error_section;
             skip(i, e);
             if (!parse_lit(i, e, d.close))
-                throw format_error(error_delim);
+                throw error_delim;
             ret.check_standalone = pure;
             ret.is_end_section = true;
             break;
@@ -387,12 +387,51 @@ namespace bustache { namespace parser { namespace
     {
         delim d{"{{", "}}"};
         bool pure = true;
-        parse_contents(i, i, e, d, pure, attr, {});
+        I start = i;
+        try
+        {
+            parse_contents(i, i, e, d, pure, attr, {});
+        }
+        catch (error_type err)
+        {
+            // Count lines and columns until current position.
+            std::ptrdiff_t line = 0;
+            I curLineStart = start;
+            for (I pos = start; pos < i; ++pos)
+            {
+                if (*pos == '\n')
+                {
+                    ++line;
+                    curLineStart = pos + 1;
+                }
+            }
+            std::ptrdiff_t column = i - curLineStart;
+            throw format_error(err, line, column);
+        }
     }
 }}}
 
 namespace bustache
 {
+    const char* error_type_to_message(error_type err)
+    {
+        switch (err)
+        {
+        case error_set_delim:
+            return "mismatched '='";
+        case error_baddelim:
+            return "invalid delimiter";
+        case error_delim:
+            return "mismatched delimiter";
+        case error_section:
+            return "mismatched end section tag";
+        case error_badkey:
+            return "invalid key";
+        default:
+            return "??";
+        }
+    }
+
     static char const* get_error_string(error_type err) noexcept
     {
         switch (err)
@@ -413,7 +452,10 @@ namespace bustache
     }
 
     format_error::format_error(error_type err)
-      : runtime_error(get_error_string(err)), _err(err)
+      : runtime_error(get_error_string(err)), _err(err), _line(-1), _column(-1)
+    {}
+    format_error::format_error(error_type err, std::ptrdiff_t line_, std::ptrdiff_t column_)
+      : runtime_error(get_error_string(err)), _err(err), _line(line_), _column(column_)
     {}
 
     void format::init(char const* begin, char const* end)

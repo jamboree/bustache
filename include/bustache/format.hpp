@@ -9,6 +9,7 @@
 
 #include <bustache/ast.hpp>
 #include <stdexcept>
+#include <cstddef>
 #include <memory>
 
 namespace bustache
@@ -61,19 +62,36 @@ namespace bustache
         error_badkey
     };
 
+    const char* error_type_to_message(error_type err);
+
     class format_error : public std::runtime_error
     {
         error_type _err;
+        std::ptrdiff_t _line;
+        std::ptrdiff_t _column;
 
     public:
         explicit format_error(error_type err);
+        explicit format_error(error_type err, std::ptrdiff_t line_, std::ptrdiff_t column_);
 
         error_type code() const noexcept
         {
             return _err;
         }
+
+        // 0-based line index where error occurred; -1 if not known
+        std::ptrdiff_t line() const noexcept
+        {
+            return _line;
+        }
+
+        // 0-based column index where error occurred; -1 if not known
+        std::ptrdiff_t column() const noexcept
+        {
+            return _column;
+        }
     };
-    
+
     struct format
     {
         format() = default;
