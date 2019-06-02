@@ -16,7 +16,7 @@ if (NOT CMAKE_BUILD_TYPE)
     "Choose the type of build, options are: None(CMAKE_CXX_FLAGS or CMAKE_C_FLAGS used) Debug Release RelWithDebInfo MinSizeRel.")
 endif()
 
-add_library(${PROJECT_NAME}
+add_library(${PROJECT_NAME} STATIC
     src/format.cpp
     src/generate.cpp
 )
@@ -87,4 +87,3 @@ endif()
 if (EXPORT_BUILD_DIR)
     export(PACKAGE ${PROJECT_NAME})
 endif()
-
