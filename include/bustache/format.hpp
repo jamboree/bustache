@@ -62,33 +62,24 @@ namespace bustache
         error_badkey
     };
 
-    const char* error_type_to_message(error_type err);
-
     class format_error : public std::runtime_error
     {
         error_type _err;
-        std::ptrdiff_t _line;
-        std::ptrdiff_t _column;
+        std::ptrdiff_t _position;
 
     public:
         explicit format_error(error_type err);
-        explicit format_error(error_type err, std::ptrdiff_t line_, std::ptrdiff_t column_);
+        explicit format_error(error_type err, std::ptrdiff_t position);
 
         error_type code() const noexcept
         {
             return _err;
         }
 
-        // 0-based line index where error occurred; -1 if not known
-        std::ptrdiff_t line() const noexcept
+        // 0-based character index where error occurred; -1 if not known
+        std::ptrdiff_t position() const noexcept
         {
-            return _line;
-        }
-
-        // 0-based column index where error occurred; -1 if not known
-        std::ptrdiff_t column() const noexcept
-        {
-            return _column;
+            return _position;
         }
     };
 
