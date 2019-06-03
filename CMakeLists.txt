@@ -6,6 +6,7 @@ list(APPEND CMAKE_MODULE_PATH "${CMAKE_SOURCE_DIR}/cmake/Modules/")
 project(bustache VERSION 1.0.0 LANGUAGES CXX)
 
 option(BUSTACHE_ENABLE_TESTING "Enable testing of the bustache library." OFF)
+option(EXPORT_BUILD_DIR "Export build directory using CMake (enables external use without install)" OFF)
 
 # Set the default CMAKE_BUILD_TYPE to Release.
 # This should be done before the project command since the latter can set
@@ -15,7 +16,7 @@ if (NOT CMAKE_BUILD_TYPE)
     "Choose the type of build, options are: None(CMAKE_CXX_FLAGS or CMAKE_C_FLAGS used) Debug Release RelWithDebInfo MinSizeRel.")
 endif()
 
-add_library(${PROJECT_NAME}
+add_library(${PROJECT_NAME} STATIC
     src/format.cpp
     src/generate.cpp
 )
@@ -63,17 +64,26 @@ set_target_properties(${PROJECT_NAME} PROPERTIES
 )
 
 # 'make install' to the correct location
-install(TARGETS ${PROJECT_NAME} EXPORT bustache-config
+install(TARGETS ${PROJECT_NAME} EXPORT bustache-targets
     ARCHIVE  DESTINATION lib
     LIBRARY  DESTINATION lib
     RUNTIME  DESTINATION bin  # This is for Windows
 )
 install(DIRECTORY include/ DESTINATION include)
-install(EXPORT bustache-config NAMESPACE bustache:: DESTINATION share/bustache/cmake)
+install(EXPORT bustache-targets NAMESPACE bustache:: DESTINATION share/bustache/cmake)
+export(EXPORT bustache-targets NAMESPACE bustache::)
+configure_file(cmake/bustache-config.cmake.in bustache-config.cmake @ONLY)
+install(FILES "${PROJECT_BINARY_DIR}/bustache-config.cmake" DESTINATION share/bustache/cmake)
 
-export(TARGETS ${PROJECT_NAME} FILE bustache-config.cmake)
+include(CMakePackageConfigHelpers)
+write_basic_package_version_file(bustache-config-version.cmake VERSION ${PROJECT_VERSION} COMPATIBILITY SameMajorVersion)
+install(FILES "${PROJECT_BINARY_DIR}/bustache-config-version.cmake" DESTINATION share/bustache/cmake)
 
 if (BUSTACHE_ENABLE_TESTING)
     enable_testing()
     add_subdirectory(test)
+endif()
+
+if (EXPORT_BUILD_DIR)
+    export(PACKAGE ${PROJECT_NAME})
 endif()
