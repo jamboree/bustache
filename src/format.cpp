@@ -7,6 +7,7 @@
 #include <cctype>
 #include <utility>
 #include <cstring>
+#include <exception>
 #include <bustache/format.hpp>
 
 namespace bustache { namespace parser { namespace
@@ -51,7 +52,7 @@ namespace bustache { namespace parser { namespace
     }
 
     template<class I>
-    void expect_key(I& i, I e, delim& d, std::string& attr, bool suffix)
+    void expect_key(I b, I& i, I e, delim& d, std::string& attr, bool suffix)
     {
         skip(i, e);
         I i0 = i;
@@ -66,20 +67,20 @@ namespace bustache { namespace parser { namespace
                 {
                     attr.assign(i0, i1);
                     if (i0 == i1)
-                        throw format_error(error_badkey);
+                        throw format_error(error_badkey, i - b);
                     return;
                 }
             }
             if (i != e)
                 ++i;
         }
-        throw format_error(error_badkey);
+        throw format_error(error_badkey, i - b);
     }
 
     template<class I>
     bool parse_content
     (
-        I& i0, I& i, I e, delim& d, bool& pure,
+        I b, I& i0, I& i, I e, delim& d, bool& pure,
         boost::string_ref& text, ast::content& attr,
         boost::string_ref section
     );
@@ -87,7 +88,7 @@ namespace bustache { namespace parser { namespace
     template<class I>
     void parse_contents
     (
-        I i0, I& i, I e, delim& d, bool& pure,
+        I b, I i0, I& i, I e, delim& d, bool& pure,
         ast::content_list& attr, boost::string_ref section
     );
 
@@ -117,25 +118,25 @@ namespace bustache { namespace parser { namespace
     }
 
     template<class I>
-    inline bool expect_block(I& i, I e, delim& d, bool& pure, ast::block& attr)
+    inline bool expect_block(I b, I& i, I e, delim& d, bool& pure, ast::block& attr)
     {
-        expect_key(i, e, d, attr.key, false);
+        expect_key(b, i, e, d, attr.key, false);
         I i0 = process_pure(i, e, pure);
         bool standalone = pure;
-        parse_contents(i0, i, e, d, pure, attr.contents, attr.key);
+        parse_contents(b, i0, i, e, d, pure, attr.contents, attr.key);
         return standalone;
     }
 
     template<class I>
-    bool expect_inheritance(I& i, I e, delim& d, bool& pure, ast::partial& attr)
+    bool expect_inheritance(I b, I& i, I e, delim& d, bool& pure, ast::partial& attr)
     {
-        expect_key(i, e, d, attr.key, false);
+        expect_key(b, i, e, d, attr.key, false);
         I i0 = process_pure(i, e, pure);
         bool standalone = pure;
         for (boost::string_ref text;;)
         {
             ast::content a;
-            auto end = parse_content(i0, i, e, d, pure, text, a, attr.key);
+            auto end = parse_content(b, i0, i, e, d, pure, text, a, attr.key);
             if (auto p = get<ast::block>(&a))
                 attr.overriders.emplace(std::move(p->key), std::move(p->contents));
             if (end)
@@ -145,18 +146,18 @@ namespace bustache { namespace parser { namespace
     }
 
     template<class I>
-    void expect_comment(I& i, I e, delim& d)
+    void expect_comment(I b, I i0, I& i, I e, delim& d)
     {
         while (!parse_lit(i, e, d.close))
         {
             if (i == e)
-                throw format_error(error_delim);
+                throw format_error(error_delim, i - b);
             ++i;
         }
     }
 
     template<class I>
-    void expect_set_delim(I& i, I e, delim& d)
+    void expect_set_delim(I b, I& i, I e, delim& d)
     {
         skip(i, e);
         I i0 = i;
@@ -167,7 +168,7 @@ namespace bustache { namespace parser { namespace
             ++i;
         }
         if (i == e)
-            throw format_error(error_baddelim);
+            throw format_error(error_baddelim, i - b);
         d.open.assign(i0, i);
         skip(i, e);
         i0 = i;
@@ -175,7 +176,7 @@ namespace bustache { namespace parser { namespace
         for (;; ++i)
         {
             if (i == e)
-                throw format_error(error_set_delim);
+                throw format_error(error_set_delim, i - b);
             if (*i == '=')
             {
                 i1 = i;
@@ -186,16 +187,16 @@ namespace bustache { namespace parser { namespace
                 i1 = i;
                 skip(++i, e);
                 if (i == e || *i != '=')
-                    throw format_error(error_set_delim);
+                    throw format_error(error_set_delim, i - b);
                 break;
             }
         }
         if (i0 == i1)
-            throw format_error(error_baddelim);
+            throw format_error(error_baddelim, i - b);
         std::string new_close(i0, i1);
         skip(++i, e);
         if (!parse_lit(i, e, d.close))
-            throw format_error(error_delim);
+            throw format_error(error_delim, i - b);
         d.close = std::move(new_close);
     }
 
@@ -209,13 +210,13 @@ namespace bustache { namespace parser { namespace
     template<class I>
     tag_result expect_tag
     (
-        I& i, I e, delim& d, bool& pure,
+        I b, I i0, I& i, I e, delim& d, bool& pure,
         ast::content& attr, boost::string_ref section
     )
     {
         skip(i, e);
         if (i == e)
-            throw format_error(error_badkey);
+            throw format_error(error_badkey, i - b);
         tag_result ret{};
         switch (*i)
         {
@@ -224,36 +225,36 @@ namespace bustache { namespace parser { namespace
         {
             ast::section a;
             a.tag = *i;
-            ret.is_standalone = expect_block(++i, e, d, pure, a);
+            ret.is_standalone = expect_block(b, ++i, e, d, pure, a);
             attr = std::move(a);
             return ret;
         }
         case '/':
             skip(++i, e);
             if (section.empty() || !parse_lit(i, e, section))
-                throw format_error(error_section);
+                throw format_error(error_section, i - b);
             skip(i, e);
             if (!parse_lit(i, e, d.close))
-                throw format_error(error_delim);
+                throw format_error(error_delim, i - b);
             ret.check_standalone = pure;
             ret.is_end_section = true;
             break;
         case '!':
         {
-            expect_comment(++i, e, d);
+            expect_comment(b, i0, ++i, e, d);
             ret.check_standalone = pure;
             break;
         }
         case '=':
         {
-            expect_set_delim(++i, e, d);
+            expect_set_delim(b, ++i, e, d);
             ret.check_standalone = pure;
             break;
         }
         case '>':
         {
             ast::partial a;
-            expect_key(++i, e, d, a.key, false);
+            expect_key(b, ++i, e, d, a.key, false);
             attr = std::move(a);
             ret.check_standalone = pure;
             break;
@@ -263,7 +264,7 @@ namespace bustache { namespace parser { namespace
         {
             ast::variable a;
             a.tag = *i;
-            expect_key(++i, e, d, a.key, a.tag == '{');
+            expect_key(b, ++i, e, d, a.key, a.tag == '{');
             attr = std::move(a);
             pure = false;
             break;
@@ -272,20 +273,20 @@ namespace bustache { namespace parser { namespace
         case '<':
         {
             ast::partial a;
-            ret.is_standalone = expect_inheritance(++i, e, d, pure, a);
+            ret.is_standalone = expect_inheritance(b, ++i, e, d, pure, a);
             attr = std::move(a);
             return ret;
         }
         case '$':
         {
             ast::block a;
-            ret.is_standalone = expect_block(++i, e, d, pure, a);
+            ret.is_standalone = expect_block(b, ++i, e, d, pure, a);
             attr = std::move(a);
             return ret;
         }
         default:
             ast::variable a;
-            expect_key(i, e, d, a.key, false);
+            expect_key(b, i, e, d, a.key, false);
             attr = std::move(a);
             pure = false;
             break;
@@ -297,7 +298,7 @@ namespace bustache { namespace parser { namespace
     template<class I>
     bool parse_content
     (
-        I& i0, I& i, I e, delim& d, bool& pure,
+        I b, I& i0, I& i, I e, delim& d, bool& pure,
         boost::string_ref& text, ast::content& attr,
         boost::string_ref section
     )
@@ -316,7 +317,7 @@ namespace bustache { namespace parser { namespace
                 I i2 = i;
                 if (parse_lit(i, e, d.open))
                 {
-                    tag_result tag(expect_tag(i, e, d, pure, attr, section));
+                    tag_result tag(expect_tag(b, i0, i, e, d, pure, attr, section));
                     text = boost::string_ref(i0, i1 - i0);
                     if (tag.check_standalone)
                     {
@@ -364,7 +365,7 @@ namespace bustache { namespace parser { namespace
     template<class I>
     void parse_contents
     (
-        I i0, I& i, I e, delim& d, bool& pure,
+        I b, I i0, I& i, I e, delim& d, bool& pure,
         ast::content_list& attr, boost::string_ref section
     )
     {
@@ -372,7 +373,7 @@ namespace bustache { namespace parser { namespace
         {
             boost::string_ref text;
             ast::content a;
-            auto end = parse_content(i0, i, e, d, pure, text, a, section);
+            auto end = parse_content(b, i0, i, e, d, pure, text, a, section);
             if (!text.empty())
                 attr.push_back(text);
             if (!is_null(a))
@@ -387,7 +388,7 @@ namespace bustache { namespace parser { namespace
     {
         delim d{"{{", "}}"};
         bool pure = true;
-        parse_contents(i, i, e, d, pure, attr, {});
+        parse_contents(i, i, i, e, d, pure, attr, {});
     }
 }}}
 
@@ -398,22 +399,25 @@ namespace bustache
         switch (err)
         {
         case error_set_delim:
-            return "format_error(error_set_delim): mismatched '='";
+            return "mismatched '='";
         case error_baddelim:
-            return "format_error(error_baddelim): invalid delimiter";
+            return "invalid delimiter";
         case error_delim:
-            return "format_error(error_delim): mismatched delimiter";
+            return "mismatched delimiter";
         case error_section:
-            return "format_error(error_section): mismatched end section tag";
+            return "mismatched end section tag";
         case error_badkey:
-            return "format_error(error_badkey): invalid key";
+            return "invalid key";
         default:
-            return "format_error";
+            std::terminate(); // should not happen
         }
     }
 
     format_error::format_error(error_type err)
-      : runtime_error(get_error_string(err)), _err(err)
+      : runtime_error(get_error_string(err)), _err(err), _position(-1)
+    {}
+    format_error::format_error(error_type err, std::ptrdiff_t position_)
+      : runtime_error(get_error_string(err)), _err(err), _position(position_)
     {}
 
     void format::init(char const* begin, char const* end)

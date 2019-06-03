@@ -9,6 +9,8 @@
 
 #include <bustache/ast.hpp>
 #include <stdexcept>
+#include <cstddef>
+#include <utility>
 #include <memory>
 
 namespace bustache
@@ -64,16 +66,24 @@ namespace bustache
     class format_error : public std::runtime_error
     {
         error_type _err;
+        std::ptrdiff_t _position;
 
     public:
         explicit format_error(error_type err);
+        explicit format_error(error_type err, std::ptrdiff_t position);
 
         error_type code() const noexcept
         {
             return _err;
         }
+
+        // 0-based character index where error occurred; -1 if not known
+        std::ptrdiff_t position() const noexcept
+        {
+            return _position;
+        }
     };
-    
+
     struct format
     {
         format() = default;
@@ -112,11 +122,22 @@ namespace bustache
         format(format&& other) noexcept
           : _contents(std::move(other._contents)), _text(std::move(other._text))
         {}
+        format& operator =(format&& other) noexcept
+        {
+            _contents = std::move(other._contents);
+            _text = std::move(other._text);
+            return *this;
+        }
 
         format(format const& other) : _contents(other._contents)
         {
             if (other._text)
                 copy_text(text_size());
+        }
+        format& operator =(format const& other)
+        {
+            *this = format(other); // copy & move for exception safety
+            return *this;
         }
 
         template<class T>
