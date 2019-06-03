@@ -128,10 +128,7 @@ namespace bustache
 
         format& operator=(format const& other)
         {
-            _contents = other._contents;
-            if (other._text)
-                copy_text(text_size());
-            return *this;
+            return operator=(format(other));
         }
 
         template<class T>
