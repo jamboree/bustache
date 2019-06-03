@@ -486,11 +486,4 @@ namespace bustache
         for (auto& content : _contents)
             bustache::visit(visitor, content);
     }
-
-    void format::copy_text_from(void const* data, std::size_t n)
-    {
-        assert(n);
-        _text.reset(new char[n]);
-        std::memcpy(_text.get(), data, n);
-    }
 }

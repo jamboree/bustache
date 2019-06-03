@@ -120,8 +120,8 @@ namespace bustache
 
         format(format const& other) : _contents(other._contents)
         {
-            if (auto const data = other._text.get())
-                copy_text_from(data, text_size());
+            if (other._text)
+                copy_text(text_size());
         }
 
         format& operator=(format&& other) = default;
@@ -129,8 +129,8 @@ namespace bustache
         format& operator=(format const& other)
         {
             _contents = other._contents;
-            if (auto const data = other._text.get())
-                copy_text_from(data, text_size());
+            if (other._text)
+                copy_text(text_size());
             return *this;
         }
 
@@ -157,7 +157,6 @@ namespace bustache
         void init(char const* begin, char const* end);
         std::size_t text_size() const noexcept;
         void copy_text(std::size_t n);
-        void copy_text_from(void const* data, std::size_t n);
 
         ast::content_list _contents;
         std::unique_ptr<char[]> _text;
