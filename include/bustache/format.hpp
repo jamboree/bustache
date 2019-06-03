@@ -10,6 +10,7 @@
 #include <bustache/ast.hpp>
 #include <stdexcept>
 #include <cstddef>
+#include <utility>
 #include <memory>
 
 namespace bustache
@@ -121,11 +122,22 @@ namespace bustache
         format(format&& other) noexcept
           : _contents(std::move(other._contents)), _text(std::move(other._text))
         {}
+        format& operator =(format&& other) noexcept
+        {
+            _contents = std::exchange(other._contents, { });
+            _text = std::exchange(other._text, { });
+            return *this;
+        }
 
         format(format const& other) : _contents(other._contents)
         {
             if (other._text)
                 copy_text(text_size());
+        }
+        format& operator =(format const& other)
+        {
+            *this = format(other); // copy & move for exception safety
+            return *this;
         }
 
         template<class T>
