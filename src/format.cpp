@@ -7,6 +7,7 @@
 #include <cctype>
 #include <utility>
 #include <cstring>
+#include <exception>
 #include <bustache/format.hpp>
 
 namespace bustache { namespace parser { namespace
@@ -398,17 +399,17 @@ namespace bustache
         switch (err)
         {
         case error_set_delim:
-            return "format_error(error_set_delim): mismatched '='";
+            return "mismatched '='";
         case error_baddelim:
-            return "format_error(error_baddelim): invalid delimiter";
+            return "invalid delimiter";
         case error_delim:
-            return "format_error(error_delim): mismatched delimiter";
+            return "mismatched delimiter";
         case error_section:
-            return "format_error(error_section): mismatched end section tag";
+            return "mismatched end section tag";
         case error_badkey:
-            return "format_error(error_badkey): invalid key";
+            return "invalid key";
         default:
-            return "format_error";
+            std::terminate(); // should not happen
         }
     }
 
