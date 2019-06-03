@@ -124,8 +124,8 @@ namespace bustache
         {}
         format& operator =(format&& other) noexcept
         {
-            _contents = std::exchange(other._contents, { });
-            _text = std::exchange(other._text, { });
+            _contents = std::move(other._contents);
+            _text = std::move(other._text);
             return *this;
         }
 
