@@ -1,5 +1,5 @@
 /*//////////////////////////////////////////////////////////////////////////////
-    Copyright (c) 2014-2018 Jamboree
+    Copyright (c) 2014-2019 Jamboree
 
     Distributed under the Boost Software License, Version 1.0. (See accompanying
     file LICENSE_1_0.txt or copy at http://www.boost.org/LICENSE_1_0.txt)
@@ -66,22 +66,13 @@ namespace bustache
     class format_error : public std::runtime_error
     {
         error_type _err;
-        std::ptrdiff_t _position;
+        std::ptrdiff_t _pos;
 
     public:
-        explicit format_error(error_type err);
-        explicit format_error(error_type err, std::ptrdiff_t position);
+        format_error(error_type err, std::ptrdiff_t position);
 
-        error_type code() const noexcept
-        {
-            return _err;
-        }
-
-        // 0-based character index where error occurred; -1 if not known
-        std::ptrdiff_t position() const noexcept
-        {
-            return _position;
-        }
+        error_type code() const noexcept { return _err; }
+        std::ptrdiff_t position() const noexcept { return _pos; }
     };
 
     struct format
@@ -98,13 +89,17 @@ namespace bustache
         {
             init(source.data(), source.data() + source.size());
         }
-        
+
         template<class Source>
-        explicit format(Source const&& source)
+        format(Source const& source, bool copytext)
         {
             init(source.data(), source.data() + source.size());
-            copy_text(text_size());
+            if (copytext)
+                copy_text(text_size());
         }
+
+        template<class Source>
+        explicit format(Source const&& source) = delete;
 
         template<std::size_t N>
         explicit format(char const (&source)[N])
@@ -122,21 +117,20 @@ namespace bustache
         format(format&& other) noexcept
           : _contents(std::move(other._contents)), _text(std::move(other._text))
         {}
-        format& operator =(format&& other) noexcept
-        {
-            _contents = std::move(other._contents);
-            _text = std::move(other._text);
-            return *this;
-        }
 
         format(format const& other) : _contents(other._contents)
         {
-            if (other._text)
-                copy_text(text_size());
+            if (auto const data = other._text.get())
+                copy_text_from(data, text_size());
         }
-        format& operator =(format const& other)
+
+        format& operator=(format&& other) = default;
+
+        format& operator=(format const& other)
         {
-            *this = format(other); // copy & move for exception safety
+            _contents = other._contents;
+            if (auto const data = other._text.get())
+                copy_text_from(data, text_size());
             return *this;
         }
 
@@ -160,10 +154,10 @@ namespace bustache
         }
         
     private:
-        
         void init(char const* begin, char const* end);
         std::size_t text_size() const noexcept;
         void copy_text(std::size_t n);
+        void copy_text_from(void const* data, std::size_t n);
 
         ast::content_list _contents;
         std::unique_ptr<char[]> _text;

@@ -1,10 +1,11 @@
 /*//////////////////////////////////////////////////////////////////////////////
-    Copyright (c) 2014-2018 Jamboree
+    Copyright (c) 2014-2019 Jamboree
 
     Distributed under the Boost Software License, Version 1.0. (See accompanying
     file LICENSE_1_0.txt or copy at http://www.boost.org/LICENSE_1_0.txt)
 //////////////////////////////////////////////////////////////////////////////*/
 #include <cctype>
+#include <cassert>
 #include <utility>
 #include <cstring>
 #include <exception>
@@ -146,7 +147,7 @@ namespace bustache { namespace parser { namespace
     }
 
     template<class I>
-    void expect_comment(I b, I i0, I& i, I e, delim& d)
+    void expect_comment(I b, I& i, I e, delim& d)
     {
         while (!parse_lit(i, e, d.close))
         {
@@ -210,7 +211,7 @@ namespace bustache { namespace parser { namespace
     template<class I>
     tag_result expect_tag
     (
-        I b, I i0, I& i, I e, delim& d, bool& pure,
+        I b, I& i, I e, delim& d, bool& pure,
         ast::content& attr, boost::string_ref section
     )
     {
@@ -241,7 +242,7 @@ namespace bustache { namespace parser { namespace
             break;
         case '!':
         {
-            expect_comment(b, i0, ++i, e, d);
+            expect_comment(b, ++i, e, d);
             ret.check_standalone = pure;
             break;
         }
@@ -317,7 +318,7 @@ namespace bustache { namespace parser { namespace
                 I i2 = i;
                 if (parse_lit(i, e, d.open))
                 {
-                    tag_result tag(expect_tag(b, i0, i, e, d, pure, attr, section));
+                    tag_result tag(expect_tag(b, i, e, d, pure, attr, section));
                     text = boost::string_ref(i0, i1 - i0);
                     if (tag.check_standalone)
                     {
@@ -409,15 +410,13 @@ namespace bustache
         case error_badkey:
             return "invalid key";
         default:
-            std::terminate(); // should not happen
+            assert(!"should not happen");
+            std::terminate();
         }
     }
 
-    format_error::format_error(error_type err)
-      : runtime_error(get_error_string(err)), _err(err), _position(-1)
-    {}
-    format_error::format_error(error_type err, std::ptrdiff_t position_)
-      : runtime_error(get_error_string(err)), _err(err), _position(position_)
+    format_error::format_error(error_type err, std::ptrdiff_t pos)
+      : runtime_error(get_error_string(err)), _err(err), _pos(pos)
     {}
 
     void format::init(char const* begin, char const* end)
@@ -440,7 +439,7 @@ namespace bustache
             return n;
         }
 
-        template <typename T>
+        template<class T>
         std::size_t operator()(T const&) const noexcept
         {
             return 0;
@@ -474,15 +473,24 @@ namespace bustache
                 bustache::visit(*this, content);
         }
 
-        template <typename T>
+        template<class T>
         void operator()(T const&) const noexcept {}
     };
 
     void format::copy_text(std::size_t n)
     {
+        if (!n)
+            return;
         _text.reset(new char[n]);
         copy_text_visitor visitor{_text.get()};
         for (auto& content : _contents)
             bustache::visit(visitor, content);
+    }
+
+    void format::copy_text_from(void const* data, std::size_t n)
+    {
+        assert(n);
+        _text.reset(new char[n]);
+        std::memcpy(_text.get(), data, n);
     }
 }

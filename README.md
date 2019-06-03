@@ -93,16 +93,12 @@ explicit format(char const (&source)[N]); // [2]
 template<class Source>
 explicit format(Source const& source); // [3]
 
-template <typename Source>
-explicit format(Source const&& source); // [4]
-
-explicit format(ast::content_list contents, bool copytext = true); // [5]
+explicit format(ast::content_list contents, bool copytext = true); // [4]
 ```
 * `Source` is an object that represents continous memory, like `std::string`, `std::vector<char>` or `boost::iostreams::mapped_file_source` that provides access to raw memory through `source.data()` and `source.size()`.
 * Version 2 allows implicit conversion from literal.
 * Version 1~3 doesn't hold the text, you must ensure the memory referenced is valid and not modified at the use of the format object.
-* Version 4 copies the necessary text into its internal buffer, so there's no lifetime issue.
-* Version 5 takes a `ast::content_list`, if `copytext == true` the text will be copied into the internal buffer.
+* Version 4 takes a `ast::content_list`, if `copytext == true` the text will be copied into the internal buffer.
 
 *Manipulator*
 ```c++
@@ -314,9 +310,10 @@ The constructor of `bustache::format` may throw `bustache::format_error` if the 
 class format_error : public std::runtime_error
 {
 public:
-    explicit format_error(error_type err);
+    explicit format_error(error_type err, std::ptrdiff_t position);
 
-    error_type code() const;
+    error_type code() const noexcept;
+    std::ptrdiff_t position() const noexcept;
 };
 ```
 `error_type` has these values:
@@ -354,7 +351,7 @@ Lower is better.
 
 ## License
 
-    Copyright (c) 2014-2018 Jamboree
+    Copyright (c) 2014-2019 Jamboree
 
     Distributed under the Boost Software License, Version 1.0. (See accompanying
     file LICENSE_1_0.txt or copy at http://www.boost.org/LICENSE_1_0.txt)
