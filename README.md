@@ -1,7 +1,7 @@
 {{ bustache }} [![Try it online][badge.wandbox]](https://wandbox.org/permlink/HC4GG9QxCw6dsygF)
 ========
 
-C++11 implementation of [{{ mustache }}](http://mustache.github.io/), compliant with [spec](https://github.com/mustache/spec) v1.1.3.
+C++17 implementation of [{{ mustache }}](http://mustache.github.io/), compliant with [spec](https://github.com/mustache/spec) v1.1.3.
 
 ## Dependencies
 * [Boost](http://www.boost.org/) - for `unordered_map`, etc
