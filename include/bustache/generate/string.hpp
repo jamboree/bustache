@@ -1,5 +1,5 @@
 /*//////////////////////////////////////////////////////////////////////////////
-    Copyright (c) 2016-2018 Jamboree
+    Copyright (c) 2016-2020 Jamboree
 
     Distributed under the Boost Software License, Version 1.0. (See accompanying
     file LICENSE_1_0.txt or copy at http://www.boost.org/LICENSE_1_0.txt)
@@ -7,7 +7,7 @@
 #ifndef BUSTACHE_GENERATE_STRING_HPP_INCLUDED
 #define BUSTACHE_GENERATE_STRING_HPP_INCLUDED
 
-#include <cstdio> // for snprintf
+#include <charconv>
 #include <string>
 #include <bustache/generate.hpp>
 
@@ -23,14 +23,13 @@ namespace bustache { namespace detail
             out.insert(out.end(), it, end);
         }
 
-        void operator()(int data) const
+        template<class T>
+        void operator()(T data) const
         {
-            append_num("%d", data);
-        }
-
-        void operator()(double data) const
-        {
-            append_num("%g", data);
+            char buf[1024];
+            auto const [p, ec] = std::to_chars(buf, buf + sizeof(buf), data);
+            if (ec == std::errc())
+                out.insert(out.end(), buf, p);
         }
 
         void operator()(bool data) const
@@ -42,68 +41,31 @@ namespace bustache { namespace detail
         {
             out.insert(out.end(), str.data, str.data + str.size);
         }
-
-        template<class T>
-        void append_num(char const* fmt, T data) const
-        {
-            char buf[64];
-            char* p;
-            auto old_size = out.size();
-            auto capacity = out.capacity();
-            auto bufsize = capacity - old_size;
-            if (bufsize)
-            {
-                out.resize(capacity);
-                p = &out.front() + old_size;
-            }
-            else
-            {
-                bufsize = sizeof(buf);
-                p = buf;
-            }
-            auto n = std::snprintf(p, bufsize, fmt, data);
-            if (n < 0) // error
-                return;
-            if (unsigned(n + 1) <= bufsize)
-            {
-                if (p == buf)
-                {
-                    out.insert(out.end(), p, p + n);
-                    return;
-                }
-            }
-            else
-            {
-                out.resize(old_size + n + 1); // '\0' will be written
-                std::snprintf(&out.front() + old_size, n + 1, fmt, data);
-            }
-            out.resize(old_size + n);
-        }
     };
 }}
 
 namespace bustache
 {
-    template<class String, class Context, class UnresolvedHandler>
+    template<class String, class Context, class UnresolvedHandler = default_unresolved_handler>
     void generate_string
     (
         String& out, format const& fmt,
         value_view const& data, Context const& context,
-        option_type flag, UnresolvedHandler&& f
+        option_type flag, UnresolvedHandler&& f = {}
     )
     {
         detail::string_sink<String> sink{out};
         generate(sink, fmt, data, context, flag, std::forward<UnresolvedHandler>(f));
     }
-
-    // This is instantiated in src/generate.cpp.
-    extern template
-    void generate_string
-    (
-        std::string& out, format const& fmt,
-        value_view const& data, context_view const& context,
-        option_type flag, default_unresolved_handler&&
-    );
+    
+    template<class T, class Context,
+        typename std::enable_if_t<std::is_constructible_v<value_view, T>, bool> = true>
+    inline std::string to_string(manipulator<T, Context> const& manip)
+    {
+        std::string ret;
+        generate_string(ret, manip.fmt, manip.data, context_view(manip.context), manip.flag);
+        return ret;
+    }
 }
 
 #endif

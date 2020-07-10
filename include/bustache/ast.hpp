@@ -1,5 +1,5 @@
 /*//////////////////////////////////////////////////////////////////////////////
-    Copyright (c) 2014-2018 Jamboree
+    Copyright (c) 2014-2020 Jamboree
 
     Distributed under the Boost Software License, Version 1.0. (See accompanying
     file LICENSE_1_0.txt or copy at http://www.boost.org/LICENSE_1_0.txt)
@@ -8,10 +8,10 @@
 #define BUSTACHE_AST_HPP_INCLUDED
 
 #include <bustache/detail/variant.hpp>
-#include <boost/utility/string_ref.hpp>
 #include <boost/unordered_map.hpp>
 #include <vector>
 #include <string>
+#include <string_view>
 
 namespace bustache { namespace ast
 {
@@ -19,7 +19,7 @@ namespace bustache { namespace ast
     struct section;
     class content;
 
-    using text = boost::string_ref;
+    using text = std::string_view;
 
     using content_list = std::vector<content>;
 

@@ -1,5 +1,5 @@
 /*//////////////////////////////////////////////////////////////////////////////
-    Copyright (c) 2016-2018 Jamboree
+    Copyright (c) 2016-2020 Jamboree
 
     Distributed under the Boost Software License, Version 1.0. (See accompanying
     file LICENSE_1_0.txt or copy at http://www.boost.org/LICENSE_1_0.txt)
@@ -37,26 +37,26 @@ namespace bustache { namespace detail
 
 namespace bustache
 {
-    template<class CharT, class Traits, class Context, class UnresolvedHandler>
+    template<class CharT, class Traits, class Context, class UnresolvedHandler = default_unresolved_handler>
     void generate_ostream
     (
         std::basic_ostream<CharT, Traits>& out, format const& fmt,
         value_view const& data, Context const& context,
-        option_type flag, UnresolvedHandler&& f
+        option_type flag, UnresolvedHandler&& f = {}
     )
     {
         detail::ostream_sink<CharT, Traits> sink{out};
         generate(sink, fmt, data, context, flag, std::forward<UnresolvedHandler>(f));
     }
-
-    // This is instantiated in src/generate.cpp.
-    extern template
-    void generate_ostream
-    (
-        std::ostream& out, format const& fmt,
-        value_view const& data, context_view const& context,
-        option_type flag, default_unresolved_handler&&
-    );
+    
+    template<class CharT, class Traits, class T, class Context,
+        typename std::enable_if_t<std::is_constructible_v<value_view, T>, bool> = true>
+    inline std::basic_ostream<CharT, Traits>&
+    operator<<(std::basic_ostream<CharT, Traits>& out, manipulator<T, Context> const& manip)
+    {
+        generate_ostream(out, manip.fmt, manip.data, context_view(manip.context), manip.flag);
+        return out;
+    }
 }
 
 #endif

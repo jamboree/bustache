@@ -1,5 +1,5 @@
 /*//////////////////////////////////////////////////////////////////////////////
-    Copyright (c) 2014-2018 Jamboree
+    Copyright (c) 2014-2020 Jamboree
 
     Distributed under the Boost Software License, Version 1.0. (See accompanying
     file LICENSE_1_0.txt or copy at http://www.boost.org/LICENSE_1_0.txt)
@@ -460,42 +460,6 @@ namespace bustache
             return self.get(key);
         }
     };
-
-    // Forward decl only.
-    template<class CharT, class Traits, class Context, class UnresolvedHandler = default_unresolved_handler>
-    void generate_ostream
-    (
-        std::basic_ostream<CharT, Traits>& out, format const& fmt,
-        value_view const& data, Context const& context,
-        option_type flag, UnresolvedHandler&& f = {}
-    );
-
-    // Forward decl only.
-    template<class String, class Context, class UnresolvedHandler = default_unresolved_handler>
-    void generate_string
-    (
-        String& out, format const& fmt,
-        value_view const& data, Context const& context,
-        option_type flag, UnresolvedHandler&& f = {}
-    );
-
-    template<class CharT, class Traits, class T, class Context,
-        typename std::enable_if<std::is_constructible<value_view, T>::value, bool>::type = true>
-    inline std::basic_ostream<CharT, Traits>&
-    operator<<(std::basic_ostream<CharT, Traits>& out, manipulator<T, Context> const& manip)
-    {
-        generate_ostream(out, manip.fmt, manip.data, context_view(manip.context), manip.flag);
-        return out;
-    }
-
-    template<class T, class Context,
-        typename std::enable_if<std::is_constructible<value_view, T>::value, bool>::type = true>
-    inline std::string to_string(manipulator<T, Context> const& manip)
-    {
-        std::string ret;
-        generate_string(ret, manip.fmt, manip.data, context_view(manip.context), manip.flag);
-        return ret;
-    }
 }
 
 #endif

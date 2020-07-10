@@ -1,5 +1,5 @@
 /*//////////////////////////////////////////////////////////////////////////////
-    Copyright (c) 2014-2019 Jamboree
+    Copyright (c) 2014-2020 Jamboree
 
     Distributed under the Boost Software License, Version 1.0. (See accompanying
     file LICENSE_1_0.txt or copy at http://www.boost.org/LICENSE_1_0.txt)
@@ -38,7 +38,7 @@ namespace bustache { namespace parser { namespace
     }
 
     template<class I>
-    inline bool parse_lit(I& i, I e, boost::string_ref str) noexcept
+    inline bool parse_lit(I& i, I e, std::string_view str) noexcept
     {
         I i0 = i;
         for (char c : str)
@@ -82,15 +82,15 @@ namespace bustache { namespace parser { namespace
     bool parse_content
     (
         I b, I& i0, I& i, I e, delim& d, bool& pure,
-        boost::string_ref& text, ast::content& attr,
-        boost::string_ref section
+        std::string_view& text, ast::content& attr,
+        std::string_view section
     );
 
     template<class I>
     void parse_contents
     (
         I b, I i0, I& i, I e, delim& d, bool& pure,
-        ast::content_list& attr, boost::string_ref section
+        ast::content_list& attr, std::string_view section
     );
 
     template<class I>
@@ -134,7 +134,7 @@ namespace bustache { namespace parser { namespace
         expect_key(b, i, e, d, attr.key, false);
         I i0 = process_pure(i, e, pure);
         bool standalone = pure;
-        for (boost::string_ref text;;)
+        for (std::string_view text;;)
         {
             ast::content a;
             auto end = parse_content(b, i0, i, e, d, pure, text, a, attr.key);
@@ -212,7 +212,7 @@ namespace bustache { namespace parser { namespace
     tag_result expect_tag
     (
         I b, I& i, I e, delim& d, bool& pure,
-        ast::content& attr, boost::string_ref section
+        ast::content& attr, std::string_view section
     )
     {
         skip(i, e);
@@ -300,8 +300,8 @@ namespace bustache { namespace parser { namespace
     bool parse_content
     (
         I b, I& i0, I& i, I e, delim& d, bool& pure,
-        boost::string_ref& text, ast::content& attr,
-        boost::string_ref section
+        std::string_view& text, ast::content& attr,
+        std::string_view section
     )
     {
         for (I i1 = i; i != e;)
@@ -319,7 +319,7 @@ namespace bustache { namespace parser { namespace
                 if (parse_lit(i, e, d.open))
                 {
                     tag_result tag(expect_tag(b, i, e, d, pure, attr, section));
-                    text = boost::string_ref(i0, i1 - i0);
+                    text = std::string_view(i0, i1 - i0);
                     if (tag.check_standalone)
                     {
                         I i3 = i;
@@ -335,7 +335,7 @@ namespace bustache { namespace parser { namespace
                             else
                             {
                                 pure = false;
-                                text = boost::string_ref(i0, i2 - i0);
+                                text = std::string_view(i0, i2 - i0);
                                 // For end-section, we move the current pos (i)
                                 // since i0 is local to the section and is not
                                 // propagated upwards.
@@ -346,7 +346,7 @@ namespace bustache { namespace parser { namespace
                         tag.is_standalone = true;
                     }
                     if (!tag.is_standalone)
-                        text = boost::string_ref(i0, i2 - i0);
+                        text = std::string_view(i0, i2 - i0);
                     else if (auto partial = get<ast::partial>(&attr))
                         partial->indent.assign(i1, i2 - i1);
                     i0 = i;
@@ -359,7 +359,7 @@ namespace bustache { namespace parser { namespace
                 }
             }
         }
-        text = boost::string_ref(i0, i - i0);
+        text = std::string_view(i0, i - i0);
         return true;
     }
 
@@ -367,12 +367,12 @@ namespace bustache { namespace parser { namespace
     void parse_contents
     (
         I b, I i0, I& i, I e, delim& d, bool& pure,
-        ast::content_list& attr, boost::string_ref section
+        ast::content_list& attr, std::string_view section
     )
     {
         for (;;)
         {
-            boost::string_ref text;
+            std::string_view text;
             ast::content a;
             auto end = parse_content(b, i0, i, e, d, pure, text, a, section);
             if (!text.empty())

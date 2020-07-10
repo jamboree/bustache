@@ -462,8 +462,8 @@ namespace bustache { namespace detail
 
         void operator()(ast::text const& text)
         {
-            auto i = text.begin();
-            auto e = text.end();
+            auto i = text.data();
+            auto e = i + text.size();
             assert(i != e && "empty text shouldn't be in ast");
             if (indent.empty())
             {
