@@ -11,22 +11,22 @@
 #include <exception>
 #include <bustache/format.hpp>
 
-namespace bustache { namespace parser { namespace
+namespace bustache::parser { namespace
 {
+    using I = char const*;
+
     struct delim
     {
         std::string open;
         std::string close;
     };
 
-    template<class I>
     inline void skip(I& i, I e) noexcept
     {
         while (i != e && std::isspace(*i))
             ++i;
     }
 
-    template<class I>
     inline bool parse_char(I& i, I e, char c) noexcept
     {
         if (i != e && *i == c)
@@ -37,10 +37,9 @@ namespace bustache { namespace parser { namespace
         return false;
     }
 
-    template<class I>
     inline bool parse_lit(I& i, I e, std::string_view str) noexcept
     {
-        if (e - i < str.size())
+        if (e - i < std::ptrdiff_t(str.size()))
             return false;
         I p = i;
         for (char c : str)
@@ -53,7 +52,6 @@ namespace bustache { namespace parser { namespace
         return true;
     }
 
-    template<class I>
     void expect_key(I b, I& i, I e, delim& d, std::string& attr, bool suffix)
     {
         skip(i, e);
@@ -79,7 +77,6 @@ namespace bustache { namespace parser { namespace
         throw format_error(error_badkey, i - b);
     }
 
-    template<class I>
     bool parse_content
     (
         I b, I& i0, I& i, I e, delim& d, bool& pure,
@@ -87,14 +84,12 @@ namespace bustache { namespace parser { namespace
         std::string_view section
     );
 
-    template<class I>
     void parse_contents
     (
         I b, I i0, I& i, I e, delim& d, bool& pure,
         ast::content_list& attr, std::string_view section
     );
 
-    template<class I>
     I process_pure(I& i, I e, bool& pure) noexcept
     {
         I i0 = i;
@@ -119,7 +114,6 @@ namespace bustache { namespace parser { namespace
         return i0;
     }
 
-    template<class I>
     inline bool expect_block(I b, I& i, I e, delim& d, bool& pure, ast::block& attr)
     {
         expect_key(b, i, e, d, attr.key, false);
@@ -129,7 +123,6 @@ namespace bustache { namespace parser { namespace
         return standalone;
     }
 
-    template<class I>
     bool expect_inheritance(I b, I& i, I e, delim& d, bool& pure, ast::partial& attr)
     {
         expect_key(b, i, e, d, attr.key, false);
@@ -147,7 +140,6 @@ namespace bustache { namespace parser { namespace
         return standalone;
     }
 
-    template<class I>
     void expect_comment(I b, I& i, I e, delim& d)
     {
         while (!parse_lit(i, e, d.close))
@@ -158,7 +150,6 @@ namespace bustache { namespace parser { namespace
         }
     }
 
-    template<class I>
     void expect_set_delim(I b, I& i, I e, delim& d)
     {
         skip(i, e);
@@ -209,7 +200,6 @@ namespace bustache { namespace parser { namespace
         bool is_standalone;
     };
 
-    template<class I>
     tag_result expect_tag
     (
         I b, I& i, I e, delim& d, bool& pure,
@@ -297,8 +287,7 @@ namespace bustache { namespace parser { namespace
         return ret;
     }
 
-    // return true if it ends
-    template<class I>
+    // Return true if it ends.
     bool parse_content
     (
         I b, I& i0, I& i, I e, delim& d, bool& pure,
@@ -365,7 +354,6 @@ namespace bustache { namespace parser { namespace
         return true;
     }
 
-    template<class I>
     void parse_contents
     (
         I b, I i0, I& i, I e, delim& d, bool& pure,
@@ -386,14 +374,13 @@ namespace bustache { namespace parser { namespace
         }
     }
 
-    template<class I>
     inline void parse_start(I& i, I e, ast::content_list& attr)
     {
         delim d{"{{", "}}"};
         bool pure = true;
         parse_contents(i, i, i, e, d, pure, attr, {});
     }
-}}}
+}}
 
 namespace bustache
 {
@@ -426,6 +413,12 @@ namespace bustache
         parser::parse_start(begin, end, _contents);
     }
 
+    struct fallback
+    {
+        template<class T>
+        constexpr fallback(T const&) {}
+    };
+
     struct accum_size
     {
         std::size_t operator()(ast::text const& text) const noexcept
@@ -433,16 +426,15 @@ namespace bustache
             return text.size();
         }
 
-        std::size_t operator()(ast::section const& section) const noexcept
+        std::size_t operator()(ast::block const& block) const noexcept
         {
             std::size_t n = 0;
-            for (auto const& content : section.contents)
+            for (auto const& content : block.contents)
                 n += bustache::visit(*this, content);
             return n;
         }
 
-        template<class T>
-        std::size_t operator()(T const&) const noexcept
+        std::size_t operator()(fallback) const noexcept
         {
             return 0;
         }
@@ -469,14 +461,13 @@ namespace bustache
             data += n;
         }
 
-        void operator()(ast::section& section) noexcept
+        void operator()(ast::block& block) noexcept
         {
-            for (auto& content : section.contents)
+            for (auto& content : block.contents)
                 bustache::visit(*this, content);
         }
 
-        template<class T>
-        void operator()(T const&) const noexcept {}
+        void operator()(fallback) const noexcept {}
     };
 
     void format::copy_text(std::size_t n)

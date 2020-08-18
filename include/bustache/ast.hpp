@@ -13,7 +13,7 @@
 #include <string>
 #include <string_view>
 
-namespace bustache { namespace ast
+namespace bustache::ast
 {
     struct variable;
     struct section;
@@ -84,6 +84,6 @@ namespace bustache { namespace ast
     {
         return !c.which();
     }
-}}
+}
 
 #endif
