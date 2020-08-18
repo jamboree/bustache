@@ -8,7 +8,7 @@
 #define BUSTACHE_AST_HPP_INCLUDED
 
 #include <bustache/detail/variant.hpp>
-#include <boost/unordered_map.hpp>
+#include <unordered_map>
 #include <vector>
 #include <string>
 #include <string_view>
@@ -23,7 +23,7 @@ namespace bustache { namespace ast
 
     using content_list = std::vector<content>;
 
-    using override_map = boost::unordered_map<std::string, content_list>;
+    using override_map = std::unordered_map<std::string, content_list>;
 
     struct null {};
 
@@ -41,7 +41,8 @@ namespace bustache { namespace ast
 
     struct section : block
     {
-        char tag = '#';
+        char tag;
+        explicit section(char tag = '#') noexcept : tag(tag) {}
     };
 
     struct partial

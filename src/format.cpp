@@ -40,15 +40,16 @@ namespace bustache { namespace parser { namespace
     template<class I>
     inline bool parse_lit(I& i, I e, std::string_view str) noexcept
     {
-        I i0 = i;
+        if (e - i < str.size())
+            return false;
+        I p = i;
         for (char c : str)
         {
-            if (!parse_char(i, e, c))
-            {
-                i = i0;
+            if (*p != c)
                 return false;
-            }
+            ++p;
         }
+        i = p;
         return true;
     }
 
@@ -56,10 +57,10 @@ namespace bustache { namespace parser { namespace
     void expect_key(I b, I& i, I e, delim& d, std::string& attr, bool suffix)
     {
         skip(i, e);
-        I i0 = i;
+        I const i0 = i;
         while (i != e)
         {
-            I i1 = i;
+            I const i1 = i;
             skip(i, e);
             if (!suffix || parse_char(i, e, '}'))
             {
@@ -223,9 +224,10 @@ namespace bustache { namespace parser { namespace
         {
         case '#':
         case '^':
+        case '?':
+        case '*':
         {
-            ast::section a;
-            a.tag = *i;
+            ast::section a(*i);
             ret.is_standalone = expect_block(b, ++i, e, d, pure, a);
             attr = std::move(a);
             return ret;

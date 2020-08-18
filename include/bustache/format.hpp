@@ -16,42 +16,43 @@
 namespace bustache
 {
     struct format;
-    
-    enum option_type : std::uint8_t
-    {
-        normal, escape_html
-    };
-    
-    struct no_context_t {};
 
-    static constexpr no_context_t no_context {};
-
-    template<class T>
-    struct context_trait
+    namespace detail
     {
-        static format const* get(T const& self, std::string const& key)
+        template<class T>
+        struct manip_core
         {
-            auto it = self.find(key);
-            return it == self.end() ? nullptr : &it->second;
-        }
-    };
+            format const& fmt;
+            T const& data;
+        };
 
-    template<>
-    struct context_trait<no_context_t>
-    {
-        static format const* get(no_context_t, std::string const&)
+        template<class T>
+        struct manip_context
         {
-            return nullptr;
-        }
-    };
+            T const& context;
+        };
 
-    template<class T, class Context>
-    struct manipulator
+        template<class T>
+        struct manip_escape
+        {
+            T const& escape;
+        };
+    }
+
+    template<class... Opts>
+    struct manipulator : Opts...
     {
-        format const& fmt;
-        T const& data;
-        Context const& context;
-        option_type const flag;
+        template<class T>
+        manipulator<Opts..., detail::manip_context<T>> context(T const& context_) const noexcept
+        {
+            return {static_cast<Opts const&>(*this)..., context_};
+        }
+
+        template<class T>
+        manipulator<Opts..., detail::manip_escape<T>> escape(T const& escape_) const noexcept
+        {
+            return {static_cast<Opts const&>(*this)..., escape_};
+        }
     };
 
     enum error_type
@@ -79,32 +80,16 @@ namespace bustache
     {
         format() = default;
 
-        format(char const* begin, char const* end)
-        {
-            init(begin, end);
-        }
-        
-        template<class Source>
-        explicit format(Source const& source)
+        explicit format(std::string_view source)
         {
             init(source.data(), source.data() + source.size());
         }
 
-        template<class Source>
-        format(Source const& source, bool copytext)
+        format(std::string_view source, bool copytext)
         {
             init(source.data(), source.data() + source.size());
             if (copytext)
                 copy_text(text_size());
-        }
-
-        template<class Source>
-        explicit format(Source const&& source) = delete;
-
-        template<std::size_t N>
-        explicit format(char const (&source)[N])
-        {
-            init(source, source + (N - 1));
         }
 
         explicit format(ast::content_list contents, bool copytext = true)
@@ -132,19 +117,11 @@ namespace bustache
         }
 
         template<class T>
-        manipulator<T, no_context_t>
-        operator()(T const& data, option_type flag = normal) const
+        manipulator<detail::manip_core<T>> operator()(T const& data) const
         {
-            return {*this, data, no_context, flag};
+            return {*this, data};
         }
-        
-        template<class T, class Context>
-        manipulator<T, Context>
-        operator()(T const& data, Context const& context, option_type flag = normal) const
-        {
-            return {*this, data, context, flag};
-        }
-        
+
         ast::content_list const& contents() const
         {
             return _contents;

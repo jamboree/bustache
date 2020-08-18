@@ -8,456 +8,507 @@
 #define BUSTACHE_MODEL_HPP_INCLUDED
 
 #include <bustache/format.hpp>
-#include <bustache/detail/variant.hpp>
 #include <vector>
+#include <concepts>
 #include <functional>
-#include <boost/unordered_map.hpp>
 
-namespace bustache
+namespace bustache::detail
 {
-    class value;
+    struct vtable_base;
 
-    using array = std::vector<value>;
-
-    // We use boost::unordered_map because it allows incomplete type.
-    using object = boost::unordered_map<std::string, value>;
-
-    using lambda0v = std::function<value()>;
-
-    using lambda0f = std::function<format()>;
-
-    using lambda1v = std::function<value(ast::content_list const&)>;
-
-    using lambda1f = std::function<format(ast::content_list const&)>;
-
-    struct value_view;
-
-    using value_ptr = variant_ptr<value_view>;
-
-    struct value_holder;
+    template<class T, class Storage>
+    constexpr bool can_store_in_v =
+        sizeof(T) <= sizeof(Storage) &&
+        alignof(T) <= alignof(Storage);
 
     template<class T>
-    struct object_trait;
+    constexpr bool is_inplace_v =
+        std::is_trivial_v<T> &&
+        can_store_in_v<T, std::uintptr_t>;
 
-    // SYNOPSIS
-    // --------
-    // template<>
-    // struct object_trait<T>
-    // {
-    //     static value_ptr get(T const& self, std::string const& key, value_holder& hold);
-    // };
-
-    struct object_view
+    template<class T>
+    inline decltype(auto) deref_data(std::uintptr_t self)
     {
-        object_view() noexcept : _data(), _get(&empty_get) {}
-
-        template<class T>
-        explicit object_view(T const& obj) noexcept
-          : _data(&obj), _get(&get_impl<T>)
-        {}
-
-        object_view(object const& obj) noexcept;
-
-        explicit operator bool() const noexcept
+        if constexpr (is_inplace_v<T>)
         {
-            return !!_data;
+            T ret;
+            std::memcpy(&ret, &self, sizeof(T));
+            return ret;
         }
+        else
+            return *reinterpret_cast<T const*>(self);
+    }
 
-        value_ptr get(std::string const& key, value_holder& hold) const
+    template<class T>
+    inline std::uintptr_t encode_data(T const* p)
+    {
+        if constexpr (is_inplace_v<T>)
         {
-            return _get(_data, key, hold);
+            std::uintptr_t ret = ~std::uintptr_t(0);
+            std::memcpy(&ret, p, sizeof(T));
+            return ret;
         }
+        else
+            return reinterpret_cast<std::uintptr_t>(p);
+    }
 
-    private:
-        static value_ptr empty_get(void const*, std::string const&, value_holder&)
-        {
-            return {};
-        }
+    template<class T>
+    struct range_value;
 
-        template<class T>
-        static value_ptr get_impl(void const* p, std::string const& key, value_holder& hold)
-        {
-            return object_trait<T>::get(*static_cast<T const*>(p), key, hold);
-        }
+    template<class T, std::size_t N>
+    struct range_value<T[N]>
+    {
+        using type = T;
+    };
 
-        void const* _data;
-        value_ptr(*_get)(void const*, std::string const&, value_holder&);
+    template<class T> requires requires { typename T::value_type; }
+    struct range_value<T>
+    {
+        using type = typename T::value_type;
     };
 
     template<class T>
-    struct list_trait;
-
-    // SYNOPSIS
-    // --------
-    // template<>
-    // struct list_trait<T>
-    // {
-    //     static bool empty(T const& self);
-    //     static std::uintptr_t begin_cursor(T const& self);
-    //     static value_ptr next(T const& self, std::uintptr_t& state, value_holder& hold);
-    //     static void end_cursor(T const& self, std::uintptr_t) noexcept {}
-    // };
-
-    struct list_view
-    {
-        template<class T>
-        explicit list_view(T const& arr) noexcept
-          : _vp(&impl<T>::table), _data(&arr)
-        {}
-
-        list_view(array const& arr) noexcept;
-
-        bool empty() const
-        {
-            return _vp->_empty(_data);
-        }
-
-        std::uintptr_t begin_cursor() const
-        {
-            return _vp->_begin_cursor(_data);
-        }
-
-        value_ptr next(std::uintptr_t& state, value_holder& hold) const
-        {
-            return _vp->_next(_data, state, hold);
-        }
-
-        void end_cursor(std::uintptr_t state) noexcept
-        {
-            _vp->_end_cursor(_data, state);
-        }
-
-    private:
-        struct vtable
-        {
-            value_ptr(*_next)(void const*, std::uintptr_t&, value_holder&);
-            std::uintptr_t(*_begin_cursor)(void const*);
-            void(*_end_cursor)(void const*, std::uintptr_t) noexcept;
-            bool(*_empty)(void const*);
-        };
-
-        template<class T>
-        struct impl
-        {
-            static value_ptr next(void const* p, std::uintptr_t& state, value_holder& hold)
-            {
-                return list_trait<T>::next(*static_cast<T const*>(p), state, hold);
-            }
-
-            static std::uintptr_t begin_cursor(void const* p)
-            {
-                return list_trait<T>::begin_cursor(*static_cast<T const*>(p));
-            }
-
-            static void end_cursor(void const* p, std::uintptr_t state) noexcept
-            {
-                list_trait<T>::end_cursor(*static_cast<T const*>(p), state);
-            }
-
-            static bool empty(void const* p)
-            {
-                return list_trait<T>::empty(*static_cast<T const*>(p));
-            }
-
-            static constexpr vtable table = {&next, &begin_cursor, &end_cursor, &empty};
-        };
-
-        vtable const* _vp; // Note: GCC cannot have `_vptr`.
-        void const* _data;
-    };
-
-#define BUSTACHE_VALUE(X, D)                                                    \
-    X(0, std::nullptr_t, D)                                                     \
-    X(1, bool, D)                                                               \
-    X(2, int, D)                                                                \
-    X(3, double, D)                                                             \
-    X(4, std::string, D)                                                        \
-    X(5, array, D)                                                              \
-    X(6, lambda0v, D)                                                           \
-    X(7, lambda0f, D)                                                           \
-    X(8, lambda1v, D)                                                           \
-    X(9, lambda1f, D)                                                           \
-    X(10, object, D)                                                            \
-    X(11, object_view, D)                                                       \
-    X(12, list_view, D)                                                         \
-/***/
-
-    namespace detail
-    {
-        template<class T>
-        struct check_bool;
-
-        template<>
-        struct check_bool<bool> { using type = bool; };
-
-        struct value_type_matcher
-        {
-            static std::nullptr_t match(std::nullptr_t);
-            static int match(int);
-            // Prevent unintended bool conversion.
-            template<class Bool, typename check_bool<Bool>::type = true>
-            static bool match(Bool);
-            static double match(double);
-            static std::string match(std::string);
-            // Need to override for `char const*`, otherwise `bool` will be chosen.
-            static std::string match(char const*);
-            static array match(array);
-            static lambda0v match(lambda0v);
-            static lambda0f match(lambda0f);
-            static lambda1v match(lambda1v);
-            static lambda1f match(lambda1f);
-            static object match(object);
-            static object_view match(object_view);
-            static list_view match(list_view);
-        };
-
-        union value_union
-        {
-            BUSTACHE_VALUE(Zz_BUSTACHE_VARIANT_MEMBER, )
-        };
-
-        union holder_storage
-        {
-            void* ptr;
-            alignas(std::max_align_t) char data[32];
-        };
-
-        template<class T, bool InPlace = sizeof(T) <= 32 && alignof(T) <= alignof(std::max_align_t)>
-        struct holder_trait
-        {
-            static T& create(holder_storage& store, T&& val)
-            {
-                return *new(store.data) T(std::move(val));
-            }
-
-            template<class X>
-            static void destroy(void* p) noexcept
-            {
-                p = static_cast<X*>(p)->store.data;
-                static_cast<T*>(p)->~T();
-            }
-        };
-
-        template<class T>
-        struct holder_trait<T, false>
-        {
-            static T& create(holder_storage& store, T&& val)
-            {
-                auto p = new T(std::move(val));
-                store.ptr = p;
-                return *p;
-            }
-
-            template<class X>
-            static void destroy(void* p) noexcept
-            {
-                p = static_cast<X*>(p)->store.ptr;
-                delete static_cast<T*>(p);
-            }
-        };
-
-        struct object_holder
-        {
-            object_view view;
-            holder_storage store;
-        };
-
-        struct list_holder
-        {
-            list_view view;
-            holder_storage store;
-        };
-    }
-
-    class value : public variant_base<value>
-    {
-        using type_matcher = detail::value_type_matcher;
-        unsigned _which;
-        union
-        {
-            char _storage[1];
-            detail::value_union _union;
-        };
-    public:
-
-        friend struct value_view;
-        using view = value_view;
-        using pointer = value_ptr;
-
-        Zz_BUSTACHE_VARIANT_DECL(value, BUSTACHE_VALUE, false)
-
-        value() noexcept : _which(0) {}
-
-        pointer get_pointer() const noexcept
-        {
-            return {_which, _storage};
-        }
-    };
-
-    struct value_view : variant_base<value_view>
-    {
-        using switcher = value::switcher;
-
-#define BUSTACHE_VALUE_VIEW_CTOR(N, U, D)                                       \
-        value_view(U const& data) noexcept : _which(N), _data(&data) {}
-        BUSTACHE_VALUE(BUSTACHE_VALUE_VIEW_CTOR,)
-#undef BUSTACHE_VALUE_VIEW_CTOR
-
-        value_view(value const& data) noexcept
-          : _which(data._which), _data(data._storage)
-        {}
-
-        value_view(unsigned which, void const* data) noexcept
-          : _which(which), _data(data)
-        {}
-
-        unsigned which() const noexcept
-        {
-            return _which;
-        }
-
-        void const* data() const noexcept
-        {
-            return _data;
-        }
-
-        value_ptr get_pointer() const noexcept
-        {
-            return {_which, _data};
-        }
-
-    private:
-
-        unsigned _which;
-        void const* _data;
-    };
-#undef BUSTACHE_VALUE
-
-    struct value_holder
-    {
-        using type_matcher = detail::value_type_matcher;
-        using switcher = value::switcher;
-
-        value_holder() noexcept : _destroy() {}
-
-        ~value_holder()
-        {
-            if (_destroy)
-                _destroy(_storage);
-        }
-
-        bool used() const noexcept { return !!_destroy; }
-
-        template<class T, class U = decltype(type_matcher::match(std::declval<T>()))>
-        value_ptr operator()(T&& other)
-        {
-            auto p = new(_storage) U(std::forward<T>(other));
-            _destroy = &destroy<U>;
-            return {switcher::index(detail::type<U>{}), p};
-        }
-
-        template<class T>
-        value_ptr object(T obj)
-        {
-            using trait = detail::holder_trait<T>;
-            _obj.view = object_view(trait::create(_obj.store, std::move(obj)));
-            _destroy = &trait::template destroy<detail::object_holder>;
-            return {switcher::index(detail::type<object_view>{}), &_obj.view};
-        }
-
-        template<class T>
-        value_ptr list(T lst)
-        {
-            using trait = detail::holder_trait<T>;
-            _lst.view = list_view(trait::create(_lst.store, std::move(lst)));
-            _destroy = &trait::template destroy<detail::list_holder>;
-            return {switcher::index(detail::type<list_view>{}), &_lst.view};
-        }
-
-    private:
-        template<class T>
-        static void destroy(void* p) noexcept
-        {
-            static_cast<T*>(p)->~T();
-        }
-
-        void(*_destroy)(void*) noexcept;
-        union
-        {
-            char _storage[1];
-            detail::value_union _union;
-            detail::object_holder _obj;
-            detail::list_holder _lst;
-        };
-    };
-
-    template<>
-    struct object_trait<object>
-    {
-        static value_ptr get(object const& obj, std::string const& key, value_holder&)
-        {
-            auto it = obj.find(key);
-            return it == obj.end() ? value_ptr() : it->second.get_pointer();
-        }
-    };
-
-    inline object_view::object_view(object const& obj) noexcept
-      : _data(&obj), _get(&get_impl<object>)
-    {}
-
-    inline object_view get_object(value_ptr p) noexcept
-    {
-        if (p)
-        {
-            auto const which = p.which();
-            if (value::switcher::index(detail::type<object>{}) == which)
-                return *static_cast<object const*>(p.data());
-            if (value::switcher::index(detail::type<object_view>{}) == which)
-                return *static_cast<object_view const*>(p.data());
-        }
-        return {};
-    }
+    using range_value_t = typename range_value<T>::type;
 }
 
 namespace bustache
 {
-    struct default_unresolved_handler
+    enum class model
     {
-        value operator()(std::string const& /*key*/) const
-        {
-            return nullptr;
-        }
+        null,
+        atom,
+        object,
+        list,
+        lazy_value,
+        lazy_format
     };
 
-    struct context_view
-    {
-        template<class Context>
-        context_view(Context const& context) noexcept
-          : _data(&context), _get(&get_impl<Context>)
-        {}
+    template<class T>
+    struct impl_test;
 
-        format const* get(std::string const& key) const
+    template<class T>
+    struct impl_print;
+
+    template<class T>
+    struct impl_object;
+
+    template<class T>
+    struct impl_list;
+
+    template<class T>
+    struct impl_model;
+
+    template<class T>
+    struct impl_compatible;
+
+    struct value_ptr;
+
+    template<class T>
+    concept Model = requires
+    {
+        {impl_model<T>::kind} -> std::convertible_to<model>;
+    };
+
+    template<class T>
+    concept Compatible = requires(T const* p)
+    {
+        {impl_compatible<T>::get_value_ptr(*p)} -> std::same_as<value_ptr>;
+    };
+
+    template<class F>
+    concept Lazy_value = requires(F const& f, ast::content_list const* contents)
+    {
+        {f(contents)} -> std::convertible_to<value_ptr>;
+    };
+
+    template<class F>
+    concept Lazy_format = requires(F const& f, ast::content_list const* contents)
+    {
+        {f(contents)} -> std::convertible_to<format>;
+    };
+
+    template<class T>
+    concept Value = Model<T> || Compatible<T> || Lazy_value<T> || Lazy_format<T>;
+
+    template<class T>
+    concept Arithmetic = std::is_arithmetic_v<T>;
+
+    template<class T>
+    concept String = std::convertible_to<T, std::string_view>;
+
+    template<class T>
+    concept ValueRange = requires(T const& t)
+    {
+        std::begin(t);
+        std::end(t);
+    } && Value<detail::range_value_t<T>>;
+
+    template<class T>
+    concept StrValueMap = requires(T const& t, std::string const& key)
+    {
+        t.find(key) == t.end();
+    } && Value<typename T::mapped_type>;
+
+    template<class F, class R, class... T>
+    concept Callable = requires(F const& f, T... t)
+    {
+        {f(t...)} -> std::convertible_to<R>;
+    };
+
+    template<class>
+    struct fn_ref;
+
+    template<class R, class... T>
+    struct fn_ref<R(T...)>
+    {
+        template<Callable<R, T...> F>
+        fn_ref(F const& f) noexcept : _data(detail::encode_data(&f)), _call(call<F>) {}
+
+        R operator()(T... t) const
         {
-            return _get(_data, key);
+            return _call(_data, std::forward<T>(t)...);
         }
 
     private:
-        template<class T>
-        static format const* get_impl(void const* p, std::string const& key)
+        template<class F>
+        static R call(std::uintptr_t f, T&&... t)
         {
-            return context_trait<T>::get(*static_cast<T const*>(p), key);
+            return detail::deref_data<F>(f)(std::forward<T>(t)...);
         }
 
-        void const* _data;
-        format const* (*_get)(void const*, std::string const&);
+        std::uintptr_t _data;
+        R(*_call)(std::uintptr_t, T&&...);
+    };
+
+    using output_handler = fn_ref<void(char const*, std::size_t)>;
+
+    struct value_ptr
+    {
+        std::uintptr_t data;
+        detail::vtable_base const* vptr;
+
+        constexpr value_ptr() { reset(); }
+        constexpr value_ptr(std::nullptr_t) { reset(); }
+
+        template<Model T>
+        value_ptr(T const* p) noexcept { p ? init_model(p) : reset(); }
+
+        template<Compatible T>
+        value_ptr(T const* p) noexcept { p ? init_compatible(p) : reset(); }
+
+        template<Lazy_value F>
+        value_ptr(F const* f) noexcept { f ? init_lazy<model::lazy_value, value_ptr>(f) : reset(); }
+        
+        template<Lazy_format F>
+        value_ptr(F const* f) noexcept { f ? init_lazy<model::lazy_format, format>(f) : reset(); }
+
+        explicit operator bool() const noexcept;
+
+        constexpr void reset();
+
+    private:
+        template<class T>
+        void init_model(T const* p) noexcept;
+
+        template<model K, class R, class F>
+        void init_lazy(F const* f) noexcept;
+
+        template<class T>
+        void init_compatible(T const* p) noexcept
+        {
+            *this = impl_compatible<T>::get_value_ptr(*p);
+        }
+    };
+
+    using value_handler = fn_ref<void(value_ptr)>;
+}
+
+namespace bustache::detail
+{
+    struct vtable_base
+    {
+        model kind;
+    };
+
+    template<model K, class R>
+    struct lazy_vtable : vtable_base
+    {
+        template<class F>
+        constexpr lazy_vtable(type<F> t) : vtable_base{K}, call(call_impl<F>) {}
+
+        R(*call)(std::uintptr_t, ast::content_list const*);
+
+        template<class F>
+        static R call_impl(std::uintptr_t self, ast::content_list const* contents)
+        {
+            return deref_data<F>(self)(contents);
+        }
+    };
+
+    template<model K, class R, class F>
+    constexpr lazy_vtable<K, R> lazy_vt{type<F>{}};
+
+    using lazy_value_vtable = lazy_vtable<model::lazy_value, value_ptr>;
+    using lazy_format_vtable = lazy_vtable<model::lazy_format, format>;
+
+    inline lazy_value_vtable const* get_lazy_value_vt(vtable_base const* vptr)
+    {
+        return vptr->kind == model::lazy_value ? static_cast<lazy_value_vtable const*>(vptr) : nullptr;
+    }
+
+    inline lazy_format_vtable const* get_lazy_format_vt(vtable_base const* vptr)
+    {
+        return vptr->kind == model::lazy_format ? static_cast<lazy_format_vtable const*>(vptr) : nullptr;
+    }
+
+    struct test_trait
+    {
+        constexpr test_trait(...) : test(test_default<true>) {}
+
+        constexpr test_trait(type<void>) : test(test_default<false>) {}
+
+        template<class T> requires requires{impl_test<T>{};}
+        constexpr test_trait(type<T>) : test(test_impl<T>) {}
+
+        bool(*test)(std::uintptr_t self);
+
+        template<bool Value>
+        static bool test_default(std::uintptr_t)
+        {
+            return Value;
+        }
+
+        template<class T>
+        static bool test_impl(std::uintptr_t self)
+        {
+            return impl_test<T>::test(deref_data<T>(self));
+        }
+    };
+
+    struct print_trait
+    {
+        constexpr print_trait(...) : print(print_default) {}
+
+        template<class T> requires requires{impl_print<T>{};}
+        constexpr print_trait(type<T>) : print(print_impl<T>) {}
+
+        void(*print)(std::uintptr_t self, output_handler os, char const* fmt);
+
+        static void print_default(std::uintptr_t, output_handler, char const*) {}
+
+        template<class T>
+        static void print_impl(std::uintptr_t self, output_handler os, char const* fmt)
+        {
+            return impl_print<T>::print(deref_data<T>(self), os, fmt);
+        }
+    };
+
+    struct object_trait
+    {
+        constexpr object_trait(...) : get(get_default) {}
+
+        template<class T> requires requires{impl_object<T>{};}
+        constexpr object_trait(type<T>) : get(get_impl<T>) {}
+
+        void(*get)(std::uintptr_t self, std::string const& key, value_handler visit);
+
+        static void get_default(std::uintptr_t, std::string const&, value_handler visit)
+        {
+            visit(nullptr);
+        }
+
+        template<class T>
+        static void get_impl(std::uintptr_t self, std::string const& key, value_handler visit)
+        {
+            return impl_object<T>::get(deref_data<T>(self), key, visit);
+        }
+    };
+
+    struct list_trait
+    {
+        constexpr list_trait(...) : iterate() {}
+
+        template<class T> requires requires{impl_list<T>{};}
+        constexpr list_trait(type<T>) : iterate(iterate_impl<T>) {}
+
+        void(*iterate)(std::uintptr_t self, value_handler visit);
+
+        template<class T>
+        static void iterate_impl(std::uintptr_t self, value_handler visit)
+        {
+            return impl_list<T>::iterate(deref_data<T>(self), visit);
+        }
+    };
+
+    struct value_vtable : vtable_base, test_trait, print_trait, object_trait, list_trait
+    {
+        constexpr value_vtable(type<void> t)
+            : vtable_base{model::null}
+            , test_trait(t), print_trait(t), object_trait(t), list_trait(t)
+        {}
+
+        template<class T>
+        constexpr value_vtable(type<T> t)
+            : vtable_base{impl_model<T>::kind}
+            , test_trait(t), print_trait(t), object_trait(t), list_trait(t)
+        {}
+    };
+
+    template<class T>
+    constexpr value_vtable value_vt{type<T>{}};
+}
+
+namespace bustache
+{
+    inline value_ptr::operator bool() const noexcept
+    {
+        return vptr->kind != model::null;
+    }
+
+    constexpr void value_ptr::reset()
+    {
+        data = 0;
+        vptr = &detail::value_vt<void>;
+    }
+
+    template<class T>
+    inline void value_ptr::init_model(T const* p) noexcept
+    {
+        data = detail::encode_data(p);
+        vptr = &detail::value_vt<T>;
+    }
+
+    template<model K, class R, class F>
+    inline void value_ptr::init_lazy(F const* f) noexcept
+    {
+        data = detail::encode_data(f);
+        vptr = &detail::lazy_vt<K, R, F>;
+    }
+
+    template<>
+    struct bustache::impl_model<bool>
+    {
+        static constexpr model kind = model::atom;
     };
 
     template<>
-    struct context_trait<context_view>
+    struct bustache::impl_test<bool>
     {
-        static format const* get(context_view self, std::string const& key)
+        static bool test(bool self)
         {
-            return self.get(key);
+            return self;
+        }
+    };
+
+    template<>
+    struct bustache::impl_print<bool>
+    {
+        static void print(bool self, output_handler os, char const* fmt)
+        {
+            self ? os("true", 4) : os("false", 5);
+        }
+    };
+
+    template<Arithmetic T>
+    struct bustache::impl_model<T>
+    {
+        static constexpr model kind = model::atom;
+    };
+
+    template<Arithmetic T>
+    struct bustache::impl_test<T>
+    {
+        static bool test(T self)
+        {
+            return !!self;
+        }
+    };
+
+#if 0
+    template<Arithmetic T>
+    struct bustache::impl_print<T>
+    {
+        static void print(T self, output_handler os, char const* fmt)
+        {
+            fmt::memory_buffer out;
+            fmt::format_to(out, "{}", self);
+            os(out.data(), out.size());
+        }
+    };
+#endif
+    
+    template<String T>
+    struct bustache::impl_model<T>
+    {
+        static constexpr model kind = model::atom;
+    };
+
+    template<String T>
+    struct bustache::impl_print<T>
+    {
+        static void print(std::string_view self, output_handler os, char const* fmt)
+        {
+            os(self.data(), self.size());
+        }
+    };
+
+    template<StrValueMap T>
+    struct bustache::impl_model<T>
+    {
+        static constexpr model kind = model::object;
+    };
+
+    template<StrValueMap T>
+    struct bustache::impl_object<T>
+    {
+        static void get(T const& self, std::string const& key, value_handler visit)
+        {
+            auto const found = self.find(key);
+            visit(found == self.end() ? nullptr : &found->second);
+        }
+    };
+
+    template<ValueRange T> requires !String<T> && !StrValueMap<T>
+    struct bustache::impl_model<T>
+    {
+        static constexpr model kind = model::list;
+    };
+
+    template<ValueRange T>
+    struct bustache::impl_test<T>
+    {
+        static bool test(T const& self)
+        {
+            return !std::empty(self);
+        }
+    };
+
+    template<ValueRange T>
+    struct bustache::impl_list<T>
+    {
+        static void iterate(T const& self, value_handler visit)
+        {
+            for (auto const& elem : self)
+                visit(&elem);
+        }
+    };
+
+    template<String K, Value V>
+    struct bustache::impl_model<std::pair<K, V>>
+    {
+        static constexpr model kind = model::object;
+    };
+
+    template<String K, Value V>
+    struct bustache::impl_object<std::pair<K, V>>
+    {
+        static void get(std::pair<K, V> const& self, std::string const& key, value_handler visit)
+        {
+            if (key == "key")
+                return visit(&self.first);
+            if (key == "value")
+                return visit(&self.second);
+            return visit(nullptr);
         }
     };
 }
