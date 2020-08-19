@@ -1,5 +1,5 @@
 /*//////////////////////////////////////////////////////////////////////////////
-    Copyright (c) 2016 Jamboree
+    Copyright (c) 2016-2020 Jamboree
 
     Distributed under the Boost Software License, Version 1.0. (See accompanying
     file LICENSE_1_0.txt or copy at http://www.boost.org/LICENSE_1_0.txt)
@@ -11,7 +11,7 @@
 #include <iomanip>
 #include <bustache/format.hpp>
 
-namespace bustache { namespace detail
+namespace bustache::detail
 {
     template<class CharT, class Traits>
     struct ast_printer
@@ -23,9 +23,9 @@ namespace bustache { namespace detail
         void operator()(ast::text const& text) const
         {
             indent();
-            auto i = text.begin();
+            auto i = text.data();
             auto i0 = i;
-            auto e = text.end();
+            auto const e = i + text.size();
             out << "text: \"";
             while (i != e)
             {
@@ -56,11 +56,19 @@ namespace bustache { namespace detail
 
         void operator()(ast::section const& section)
         {
-            out;
             out << "section(" << section.tag << "): " << section.key << "\n";
             ++level;
             for (auto const& content : section.contents)
-                apply_visitor(*this, content);
+                visit(*this, content);
+            --level;
+        }
+
+        void operator()(ast::inheritance const& inheritance)
+        {
+            out << "inheritance: " << inheritance.key << "\n";
+            ++level;
+            for (auto const& content : inheritance.contents)
+                visit(*this, content);
             --level;
         }
 
@@ -76,7 +84,7 @@ namespace bustache { namespace detail
             out << std::setw(space * level) << "";
         }
     };
-}}
+}
 
 namespace bustache
 {
@@ -85,7 +93,7 @@ namespace bustache
     {
         detail::ast_printer<CharT, Traits> visitor{out, 0, indent};
         for (auto const& content : fmt.contents())
-            apply_visitor(visitor, content);
+            visit(visitor, content);
     }
 }
 

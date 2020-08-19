@@ -1,16 +1,66 @@
 /*//////////////////////////////////////////////////////////////////////////////
-    Copyright (c) 2016 Jamboree
+    Copyright (c) 2016-2020 Jamboree
 
     Distributed under the Boost Software License, Version 1.0. (See accompanying
     file LICENSE_1_0.txt or copy at http://www.boost.org/LICENSE_1_0.txt)
 //////////////////////////////////////////////////////////////////////////////*/
 #define CATCH_CONFIG_MAIN
 #include <catch.hpp>
-#include <bustache/model.hpp>
-#include <boost/unordered_map.hpp>
+#include <bustache/render/string.hpp>
+#include <unordered_map>
+#include <algorithm>
+#include <functional>
 
 using namespace bustache;
-using context = boost::unordered_map<std::string, format>;
+
+struct context : std::unordered_map<std::string, format>
+{
+    using unordered_map::unordered_map;
+
+    format const* operator()(std::string const& key) const
+    {
+        auto it = find(key);
+        return it == end() ? nullptr : &it->second;
+    }
+};
+
+struct value;
+
+struct object : std::vector<std::pair<std::string, value>>
+{
+    using vector::vector;
+    using mapped_type = value;
+
+    const_iterator find(std::string const& key) const;
+};
+
+using array = std::vector<value>;
+using lazy_value = std::function<value(ast::content_list const*)>;
+using lazy_format = std::function<format(ast::content_list const*)>;
+
+struct value : std::variant<bool, int, double, std::string, object, array, lazy_value, lazy_format>
+{
+    using variant::variant;
+
+    value(char const* str) : variant(std::string(str)) {}
+};
+
+object::const_iterator object::find(std::string const& key) const
+{
+    return std::find_if(begin(), end(), [&key](value_type const& pair)
+    {
+        return pair.first == key;
+    });
+}
+
+template<>
+struct impl_compatible<value>
+{
+    static value_ptr get_value_ptr(value const& self)
+    {
+        return std::visit([](auto const& val) { return value_ptr(&val); }, self);
+    }
+};
 
 TEST_CASE("interpolation")
 {
@@ -23,15 +73,15 @@ TEST_CASE("interpolation")
     CHECK(to_string("Hello, {{subject}}!"_fmt(object{{"subject", "world"}})) == "Hello, world!");
 
     // HTML Escaping
-    CHECK(to_string("These characters should be HTML escaped: {{forbidden}}"_fmt(object{{"forbidden", "& \" < >"}}, escape_html))
+    CHECK(to_string("These characters should be HTML escaped: {{forbidden}}"_fmt(object{{"forbidden", "& \" < >"}}).escape(escape_html))
         == "These characters should be HTML escaped: &amp; &quot; &lt; &gt;");
 
     // Triple Mustache
-    CHECK(to_string("These characters should not be HTML escaped: {{{forbidden}}}"_fmt(object{{"forbidden", "& \" < >"}}, escape_html))
+    CHECK(to_string("These characters should not be HTML escaped: {{{forbidden}}}"_fmt(object{{"forbidden", "& \" < >"}}).escape(escape_html))
         == "These characters should not be HTML escaped: & \" < >");
 
     // Ampersand
-    CHECK(to_string("These characters should not be HTML escaped: {{&forbidden}}"_fmt(object{{"forbidden", "& \" < >"}}, escape_html))
+    CHECK(to_string("These characters should not be HTML escaped: {{&forbidden}}"_fmt(object{{"forbidden", "& \" < >"}}).escape(escape_html))
         == "These characters should not be HTML escaped: & \" < >");
 
     // Basic Integer Interpolation
@@ -458,7 +508,7 @@ TEST_CASE("delimiters")
     CHECK(to_string(
         "[ {{>include}} ]\n"
         "{{= | | =}}\n"
-        "[ |>include| ]"_fmt(object{{"value", "yes"}}, context{{"include", ".{{value}}."_fmt}}))
+        "[ |>include| ]"_fmt(object{{"value", "yes"}}).context(context{{"include", ".{{value}}."_fmt}}))
         ==
         "[ .yes. ]\n"
         "[ .yes. ]");
@@ -466,7 +516,7 @@ TEST_CASE("delimiters")
     // Post-Partial Behavior
     CHECK(to_string(
         "[ {{>include}} ]\n"
-        "[ .{{value}}.  .|value|. ]"_fmt(object{{"value", "yes"}}, context{{"include", ".{{value}}. {{= | | =}} .|value|."_fmt}}))
+        "[ .{{value}}.  .|value|. ]"_fmt(object{{"value", "yes"}}).context(context{{"include", ".{{value}}. {{= | | =}} .|value|."_fmt}}))
         ==
         "[ .yes.  .yes. ]\n"
         "[ .yes.  .|value|. ]");
@@ -593,42 +643,42 @@ TEST_CASE("partials")
     object const empty;
 
     // Basic Behavior
-    CHECK(to_string(R"("{{>text}}")"_fmt(empty, context{{"text", "from partial"_fmt}})) == R"("from partial")");
+    CHECK(to_string(R"("{{>text}}")"_fmt(empty).context(context{{"text", "from partial"_fmt}})) == R"("from partial")");
 
     // Failed Lookup
     CHECK(to_string(R"("{{>text}}")"_fmt(empty)) == R"("")");
 
     // Context
-    CHECK(to_string(R"("{{>partial}}")"_fmt(object{{"text", "content"}}, context{{"partial", "*{{text}}*"_fmt}})) == R"("*content*")");
+    CHECK(to_string(R"("{{>partial}}")"_fmt(object{{"text", "content"}}).context(context{{"partial", "*{{text}}*"_fmt}})) == R"("*content*")");
 
     // Recursion
     CHECK(to_string("{{>node}}"_fmt(object{
         {"content", "X"},
         {"nodes", array{object{{"content", "Y"}, {"nodes", array{}}}}}
-    }, context{{"node", "{{content}}<{{#nodes}}{{>node}}{{/nodes}}>"_fmt}})) == "X<Y<>>");
+    }).context(context{{"node", "{{content}}<{{#nodes}}{{>node}}{{/nodes}}>"_fmt}})) == "X<Y<>>");
 
     // Whitespace Sensitivity
     {
         // Surrounding Whitespace
-        CHECK(to_string("| {{>partial}} |"_fmt(empty, context{{"partial", "\t|\t"_fmt}})) == "| \t|\t |");
+        CHECK(to_string("| {{>partial}} |"_fmt(empty).context(context{{"partial", "\t|\t"_fmt}})) == "| \t|\t |");
 
         // Inline Indentation
-        CHECK(to_string("  {{data}}  {{> partial}}\n"_fmt(object{{"data", "|"}}, context{{"partial", ">\n>"_fmt}})) == "  |  >\n>\n");
+        CHECK(to_string("  {{data}}  {{> partial}}\n"_fmt(object{{"data", "|"}}).context(context{{"partial", ">\n>"_fmt}})) == "  |  >\n>\n");
 
         // Standalone Line Endings
-        CHECK(to_string("|\r\n{{>partial}}\r\n|"_fmt(empty, context{{"partial", ">"_fmt}})) == "|\r\n>|");
+        CHECK(to_string("|\r\n{{>partial}}\r\n|"_fmt(empty).context(context{{"partial", ">"_fmt}})) == "|\r\n>|");
 
         // Standalone Without Previous Line
-        CHECK(to_string("  {{>partial}}\n>"_fmt(empty, context{{"partial", ">\n>"_fmt}})) == "  >\n  >>");
+        CHECK(to_string("  {{>partial}}\n>"_fmt(empty).context(context{{"partial", ">\n>"_fmt}})) == "  >\n  >>");
 
         // Standalone Without Newline
-        CHECK(to_string(">\n  {{>partial}}"_fmt(empty, context{{"partial", ">\n>"_fmt}})) == ">\n  >\n  >");
+        CHECK(to_string(">\n  {{>partial}}"_fmt(empty).context(context{{"partial", ">\n>"_fmt}})) == ">\n  >\n  >");
 
         // Standalone Indentation
         CHECK(to_string(
             "\\\n"
             " {{>partial}}\n"
-            "/"_fmt(object{{"content", "<\n->"}},
+            "/"_fmt(object{{"content", "<\n->"}}).context(
                 context{{"partial",
                 "|\n"
                 "{{{content}}}\n"
@@ -645,19 +695,19 @@ TEST_CASE("partials")
     // Whitespace Insensitivity
     {
         // Padding Whitespace
-        CHECK(to_string("|{{> partial }}|"_fmt(empty, context{{"partial", "[]"_fmt}})) == "|[]|");
+        CHECK(to_string("|{{> partial }}|"_fmt(empty).context(context{{"partial", "[]"_fmt}})) == "|[]|");
     }
 }
 
 TEST_CASE("lambdas")
 {
     // Interpolation
-    CHECK(to_string("Hello, {{lambda}}!"_fmt(object{{"lambda", [] { return "world"; }}})) == "Hello, world!");
+    CHECK(to_string("Hello, {{lambda}}!"_fmt(object{{"lambda", lazy_value([](...) { return "world"; })}})) == "Hello, world!");
 
     // Interpolation - Expansion
     CHECK(to_string(
         "Hello, {{lambda}}!"_fmt(object{
-            {"lambda", [] { return "{{planet}}"_fmt; }},
+            {"lambda", lazy_format([](...) { return "{{planet}}"_fmt; })},
             {"planet", "world"}}))
         ==
         "Hello, world!");
@@ -665,7 +715,7 @@ TEST_CASE("lambdas")
     // Interpolation - Alternate Delimiters
     CHECK(to_string(
         "{{= | | =}}\nHello, (|&lambda|)!"_fmt(object{
-            {"lambda", [] { return "|planet| => {{planet}}"_fmt; }},
+            {"lambda", lazy_format([](...) { return "|planet| => {{planet}}"_fmt; })},
             {"planet", "world"}}))
         ==
         "Hello, (|planet| => world)!");
@@ -673,20 +723,23 @@ TEST_CASE("lambdas")
     // Interpolation - Multiple Calls
     CHECK(to_string(
         "{{lambda}} == {{{lambda}}} == {{lambda}}"_fmt(object{
-            {"lambda", [n = 0]() mutable { return ++n; }}}))
+            {"lambda", lazy_value([n = 0](...) mutable { return ++n; })}}))
         ==
         "1 == 2 == 3");
 
     // Escaping
-    CHECK(to_string("<{{lambda}}{{{lambda}}}"_fmt(object{{"lambda", [] { return ">"; }}}, escape_html)) == "<&gt;>");
+    CHECK(to_string("<{{lambda}}{{{lambda}}}"_fmt(object{{"lambda", lazy_value([](...) { return ">"; })}}).escape(escape_html)) == "<&gt;>");
 
     // Section - Expansion
     CHECK(to_string("<{{#lambda}}-{{/lambda}}>"_fmt(object{
-        {"lambda", [](ast::content_list const& contents) {
+        {"lambda", [](ast::content_list const* contents) {
             ast::content_list list;
-            list.insert(list.end(), contents.begin(), contents.end());
-            list.push_back(ast::variable{"planet"});
-            list.insert(list.end(), contents.begin(), contents.end());
+            if (contents)
+            {
+                list.insert(list.end(), contents->begin(), contents->end());
+                list.push_back(ast::variable{"planet"});
+                list.insert(list.end(), contents->begin(), contents->end());
+            }
             return format(std::move(list), false);
         }},
         {"planet", "Earth"}}))
@@ -695,11 +748,14 @@ TEST_CASE("lambdas")
 
     // Section - Multiple Calls
     CHECK(to_string("{{#lambda}}FILE{{/lambda}} != {{#lambda}}LINE{{/lambda}}"_fmt(object{
-        {"lambda", [](ast::content_list const& contents) {
+        {"lambda", [](ast::content_list const* contents) {
             ast::content_list list;
-            list.push_back(ast::text("__"));
-            list.insert(list.end(), contents.begin(), contents.end());
-            list.push_back(ast::text("__"));
+            if (contents)
+            {
+                list.push_back(ast::text("__"));
+                list.insert(list.end(), contents->begin(), contents->end());
+                list.push_back(ast::text("__"));
+            }
             return format(std::move(list), false);
         }}}))
         ==
@@ -707,20 +763,8 @@ TEST_CASE("lambdas")
 
     // Inverted Section
     CHECK(to_string("<{{^lambda}}{{static}}{{/lambda}}>"_fmt(object{
-        {"lambda", [](ast::content_list const&) { return false; }},
+        {"lambda", lazy_value([](...) { return false; })},
         {"static", "static"}}))
         ==
         "<>");
-}
-
-// This is not really part of the spec.
-TEST_CASE("special-values")
-{
-    auto const fmt = "{{.}}"_fmt;
-
-    CHECK(to_string(fmt(true)) == "true");
-    CHECK(to_string(fmt(false)) == "false");
-    CHECK(to_string(fmt(array{1, 2, 3})) == "1,2,3");
-    CHECK(to_string(fmt(object{})) == "[Object]");
-    CHECK(to_string(fmt(lambda1f())) == "[Function]");
 }

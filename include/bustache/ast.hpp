@@ -7,7 +7,7 @@
 #ifndef BUSTACHE_AST_HPP_INCLUDED
 #define BUSTACHE_AST_HPP_INCLUDED
 
-#include <bustache/detail/variant.hpp>
+#include <variant>
 #include <unordered_map>
 #include <vector>
 #include <string>
@@ -17,7 +17,7 @@ namespace bustache::ast
 {
     struct variable;
     struct section;
-    class content;
+    struct content;
 
     using text = std::string_view;
 
@@ -45,6 +45,8 @@ namespace bustache::ast
         explicit section(char tag = '#') noexcept : tag(tag) {}
     };
 
+    struct inheritance : block {};
+
     struct partial
     {
         std::string key;
@@ -52,38 +54,12 @@ namespace bustache::ast
         override_map overriders;
     };
 
-#define BUSTACHE_AST_CONTENT(X, D)                                              \
-    X(0, null, D)                                                               \
-    X(1, text, D)                                                               \
-    X(2, variable, D)                                                           \
-    X(3, section, D)                                                            \
-    X(4, partial, D)                                                            \
-    X(5, block, D)                                                              \
-/***/
-
-    class content : public variant_base<content>
+    struct content : std::variant<null, text, variable, section, partial, inheritance>
     {
-        struct type_matcher
-        {
-            BUSTACHE_AST_CONTENT(Zz_BUSTACHE_VARIANT_MATCH, )
-        };
-        unsigned _which;
-        union
-        {
-            char _storage[1];
-            BUSTACHE_AST_CONTENT(Zz_BUSTACHE_VARIANT_MEMBER, )
-        };
-    public:
-        Zz_BUSTACHE_VARIANT_DECL(content, BUSTACHE_AST_CONTENT, true)
+        using variant::variant;
 
-        content() noexcept : _which(0) {}
+        bool is_null() const { return !index(); }
     };
-#undef BUSTACHE_AST_CONTENT
-
-    inline bool is_null(content const& c)
-    {
-        return !c.which();
-    }
 }
 
 #endif

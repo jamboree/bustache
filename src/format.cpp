@@ -132,7 +132,7 @@ namespace bustache::parser { namespace
         {
             ast::content a;
             auto end = parse_content(b, i0, i, e, d, pure, text, a, attr.key);
-            if (auto p = get<ast::block>(&a))
+            if (auto p = get_if<ast::inheritance>(&a))
                 attr.overriders.emplace(std::move(p->key), std::move(p->contents));
             if (end)
                 break;
@@ -272,7 +272,7 @@ namespace bustache::parser { namespace
         }
         case '$':
         {
-            ast::block a;
+            ast::inheritance a;
             ret.is_standalone = expect_block(b, ++i, e, d, pure, a);
             attr = std::move(a);
             return ret;
@@ -338,7 +338,7 @@ namespace bustache::parser { namespace
                     }
                     if (!tag.is_standalone)
                         text = std::string_view(i0, i2 - i0);
-                    else if (auto partial = get<ast::partial>(&attr))
+                    else if (auto partial = get_if<ast::partial>(&attr))
                         partial->indent.assign(i1, i2 - i1);
                     i0 = i;
                     return i == e || tag.is_end_section;
@@ -367,7 +367,7 @@ namespace bustache::parser { namespace
             auto end = parse_content(b, i0, i, e, d, pure, text, a, section);
             if (!text.empty())
                 attr.push_back(text);
-            if (!is_null(a))
+            if (!a.is_null())
                 attr.push_back(std::move(a));
             if (end)
                 return;
@@ -430,7 +430,7 @@ namespace bustache
         {
             std::size_t n = 0;
             for (auto const& content : block.contents)
-                n += bustache::visit(*this, content);
+                n += visit(*this, content);
             return n;
         }
 
@@ -445,7 +445,7 @@ namespace bustache
         accum_size accum;
         std::size_t n = 0;
         for (auto const& content : _contents)
-            n += bustache::visit(accum, content);
+            n += visit(accum, content);
         return n;
     }
 
@@ -464,7 +464,7 @@ namespace bustache
         void operator()(ast::block& block) noexcept
         {
             for (auto& content : block.contents)
-                bustache::visit(*this, content);
+                visit(*this, content);
         }
 
         void operator()(fallback) const noexcept {}
@@ -477,6 +477,6 @@ namespace bustache
         _text.reset(new char[n]);
         copy_text_visitor visitor{_text.get()};
         for (auto& content : _contents)
-            bustache::visit(visitor, content);
+            visit(visitor, content);
     }
 }

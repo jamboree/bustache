@@ -4,12 +4,11 @@
     Distributed under the Boost Software License, Version 1.0. (See accompanying
     file LICENSE_1_0.txt or copy at http://www.boost.org/LICENSE_1_0.txt)
 //////////////////////////////////////////////////////////////////////////////*/
-#ifndef BUSTACHE_GENERATE_STRING_HPP_INCLUDED
-#define BUSTACHE_GENERATE_STRING_HPP_INCLUDED
+#ifndef BUSTACHE_RENDER_STRING_HPP_INCLUDED
+#define BUSTACHE_RENDER_STRING_HPP_INCLUDED
 
-#include <charconv>
 #include <string>
-#include <bustache/generate.hpp>
+#include <bustache/render.hpp>
 
 namespace bustache { namespace detail
 {
@@ -18,52 +17,31 @@ namespace bustache { namespace detail
     {
         String& out;
 
-        void operator()(char const* it, char const* end) const
+        void operator()(char const* data, std::size_t bytes) const
         {
-            out.insert(out.end(), it, end);
-        }
-
-        template<class T>
-        void operator()(T data) const
-        {
-            char buf[1024];
-            auto const [p, ec] = std::to_chars(buf, buf + sizeof(buf), data);
-            if (ec == std::errc())
-                out.insert(out.end(), buf, p);
-        }
-
-        void operator()(bool data) const
-        {
-            data ? append("true") : append("false");
-        }
-
-        void append(strlit str) const
-        {
-            out.insert(out.end(), str.data, str.data + str.size);
+            out.insert(out.end(), data, data + bytes);
         }
     };
 }}
 
 namespace bustache
 {
-    template<class String, class Context, class UnresolvedHandler = default_unresolved_handler>
-    void generate_string
+    template<class String, Value T, class Escape = detail::no_escape_t>
+    inline void render_string
     (
         String& out, format const& fmt,
-        value_view const& data, Context const& context,
-        option_type flag, UnresolvedHandler&& f = {}
+        T const& data, context_handler context = no_context_t{},
+        Escape escape = {}, unresolved_handler f = nullptr
     )
     {
-        detail::string_sink<String> sink{out};
-        generate(sink, fmt, data, context, flag, std::forward<UnresolvedHandler>(f));
+        render(detail::string_sink<String>{out}, fmt, data, context, escape, f);
     }
     
-    template<class T, class Context,
-        typename std::enable_if_t<std::is_constructible_v<value_view, T>, bool> = true>
-    inline std::string to_string(manipulator<T, Context> const& manip)
+    template<class... Opts>
+    inline std::string to_string(manipulator<Opts...> const& manip)
     {
         std::string ret;
-        generate_string(ret, manip.fmt, manip.data, context_view(manip.context), manip.flag);
+        render_string(ret, manip.fmt, manip.data, detail::get_context(&manip), detail::get_escape(&manip));
         return ret;
     }
 }

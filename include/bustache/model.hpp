@@ -11,6 +11,7 @@
 #include <vector>
 #include <concepts>
 #include <functional>
+#include <charconv>
 
 namespace bustache::detail
 {
@@ -44,7 +45,7 @@ namespace bustache::detail
     {
         if constexpr (is_inplace_v<T>)
         {
-            std::uintptr_t ret = ~std::uintptr_t(0);
+            std::uintptr_t ret;
             std::memcpy(&ret, p, sizeof(T));
             return ret;
         }
@@ -69,6 +70,36 @@ namespace bustache::detail
 
     template<class T>
     using range_value_t = typename range_value<T>::type;
+
+    template<class>
+    struct fn_base;
+
+    template<class R, class... T>
+    struct fn_base<R(T...)>
+    {
+        fn_base() noexcept : _data(), _call() {}
+
+        template<class F>
+        fn_base(F const& f) noexcept : _data(encode_data(&f)), _call(call<F>) {}
+
+        template<class F>
+        fn_base(F* f) noexcept : _data(reinterpret_cast<std::uintptr_t>(f)), _call(call<F*>) {}
+
+        R operator()(T... t) const
+        {
+            return _call(_data, std::forward<T>(t)...);
+        }
+
+        template<class F>
+        static R call(std::uintptr_t f, T&&... t)
+        {
+            return deref_data<F>(f)(std::forward<T>(t)...);
+        }
+
+        std::uintptr_t _data;
+        R(*_call)(std::uintptr_t, T&&...);
+    };
+
 }
 
 namespace bustache
@@ -116,19 +147,25 @@ namespace bustache
     };
 
     template<class F>
-    concept Lazy_value = requires(F const& f, ast::content_list const* contents)
-    {
-        {f(contents)} -> std::convertible_to<value_ptr>;
-    };
-
-    template<class F>
     concept Lazy_format = requires(F const& f, ast::content_list const* contents)
     {
         {f(contents)} -> std::convertible_to<format>;
     };
 
+    //template<class T>
+    //concept Value = Model<T> || Compatible<T> || Lazy_value<T> || Lazy_format<T>;
+
     template<class T>
-    concept Value = Model<T> || Compatible<T> || Lazy_value<T> || Lazy_format<T>;
+    concept Value = requires(T const& val)
+    {
+        value_ptr(&val);
+    };
+
+    template<class F>
+    concept Lazy_value = requires(F const& f, ast::content_list const* contents)
+    {
+        {f(contents)} -> Value;
+    };
 
     template<class T>
     concept Arithmetic = std::is_arithmetic_v<T>;
@@ -156,28 +193,38 @@ namespace bustache
     };
 
     template<class>
-    struct fn_ref;
+    class fn_ref;
 
     template<class R, class... T>
-    struct fn_ref<R(T...)>
+    class fn_ref<R(T...)> : detail::fn_base<R(T...)>
     {
+        using base_t = detail::fn_base<R(T...)>;
+
+    public:
         template<Callable<R, T...> F>
-        fn_ref(F const& f) noexcept : _data(detail::encode_data(&f)), _call(call<F>) {}
+        fn_ref(F const& f) noexcept : base_t(f) {}
 
-        R operator()(T... t) const
-        {
-            return _call(_data, std::forward<T>(t)...);
-        }
+        using base_t::operator();
+    };
 
-    private:
-        template<class F>
-        static R call(std::uintptr_t f, T&&... t)
-        {
-            return detail::deref_data<F>(f)(std::forward<T>(t)...);
-        }
+    template<class>
+    class fn_ptr;
 
-        std::uintptr_t _data;
-        R(*_call)(std::uintptr_t, T&&...);
+    template<class R, class... T>
+    class fn_ptr<R(T...)> : detail::fn_base<R(T...)>
+    {
+        using base_t = detail::fn_base<R(T...)>;
+
+    public:
+        fn_ptr() = default;
+        fn_ptr(std::nullptr_t) noexcept {}
+
+        template<Callable<R, T...> F>
+        fn_ptr(F const& f) noexcept : base_t(f) {}
+
+        using base_t::operator();
+
+        explicit operator bool() const { return !!this->_data; }
     };
 
     using output_handler = fn_ref<void(char const*, std::size_t)>;
@@ -197,10 +244,10 @@ namespace bustache
         value_ptr(T const* p) noexcept { p ? init_compatible(p) : reset(); }
 
         template<Lazy_value F>
-        value_ptr(F const* f) noexcept { f ? init_lazy<model::lazy_value, value_ptr>(f) : reset(); }
-        
+        value_ptr(F const* f) noexcept { f ? init_lazy_value(f) : reset(); }
+
         template<Lazy_format F>
-        value_ptr(F const* f) noexcept { f ? init_lazy<model::lazy_format, format>(f) : reset(); }
+        value_ptr(F const* f) noexcept { f ? init_lazy_format(f) : reset(); }
 
         explicit operator bool() const noexcept;
 
@@ -210,8 +257,11 @@ namespace bustache
         template<class T>
         void init_model(T const* p) noexcept;
 
-        template<model K, class R, class F>
-        void init_lazy(F const* f) noexcept;
+        template<class F>
+        void init_lazy_format(F const* f) noexcept;
+
+        template<class F>
+        void init_lazy_value(F const* f) noexcept;
 
         template<class T>
         void init_compatible(T const* p) noexcept
@@ -225,41 +275,48 @@ namespace bustache
 
 namespace bustache::detail
 {
+    template<class T>
+    struct type {};
+
     struct vtable_base
     {
         model kind;
     };
 
-    template<model K, class R>
-    struct lazy_vtable : vtable_base
+    struct lazy_format_vtable : vtable_base
     {
         template<class F>
-        constexpr lazy_vtable(type<F> t) : vtable_base{K}, call(call_impl<F>) {}
+        constexpr lazy_format_vtable(type<F> t) : vtable_base{model::lazy_format}, call(call_impl<F>) {}
 
-        R(*call)(std::uintptr_t, ast::content_list const*);
+        format(*call)(std::uintptr_t, ast::content_list const*);
 
         template<class F>
-        static R call_impl(std::uintptr_t self, ast::content_list const* contents)
+        static format call_impl(std::uintptr_t self, ast::content_list const* contents)
         {
             return deref_data<F>(self)(contents);
         }
     };
 
-    template<model K, class R, class F>
-    constexpr lazy_vtable<K, R> lazy_vt{type<F>{}};
+    template<class F>
+    constexpr lazy_format_vtable lazy_format_vt{type<F>{}};
 
-    using lazy_value_vtable = lazy_vtable<model::lazy_value, value_ptr>;
-    using lazy_format_vtable = lazy_vtable<model::lazy_format, format>;
-
-    inline lazy_value_vtable const* get_lazy_value_vt(vtable_base const* vptr)
+    struct lazy_value_vtable : vtable_base
     {
-        return vptr->kind == model::lazy_value ? static_cast<lazy_value_vtable const*>(vptr) : nullptr;
-    }
+        template<class F>
+        constexpr lazy_value_vtable(type<F> t) : vtable_base{model::lazy_value}, call(call_impl<F>) {}
 
-    inline lazy_format_vtable const* get_lazy_format_vt(vtable_base const* vptr)
-    {
-        return vptr->kind == model::lazy_format ? static_cast<lazy_format_vtable const*>(vptr) : nullptr;
-    }
+        void(*call)(std::uintptr_t, ast::content_list const*, value_handler visit);
+
+        template<class F>
+        static void call_impl(std::uintptr_t self, ast::content_list const* contents, value_handler visit)
+        {
+            auto const& val = deref_data<F>(self)(contents);
+            visit(&val);
+        }
+    };
+
+    template<class F>
+    constexpr lazy_value_vtable lazy_value_vt{type<F>{}};
 
     struct test_trait
     {
@@ -378,21 +435,28 @@ namespace bustache
         vptr = &detail::value_vt<T>;
     }
 
-    template<model K, class R, class F>
-    inline void value_ptr::init_lazy(F const* f) noexcept
+    template<class F>
+    inline void value_ptr::init_lazy_format(F const* f) noexcept
     {
         data = detail::encode_data(f);
-        vptr = &detail::lazy_vt<K, R, F>;
+        vptr = &detail::lazy_format_vt<F>;
+    }
+
+    template<class F>
+    inline void value_ptr::init_lazy_value(F const* f) noexcept
+    {
+        data = detail::encode_data(f);
+        vptr = &detail::lazy_value_vt<F>;
     }
 
     template<>
-    struct bustache::impl_model<bool>
+    struct impl_model<bool>
     {
         static constexpr model kind = model::atom;
     };
 
     template<>
-    struct bustache::impl_test<bool>
+    struct impl_test<bool>
     {
         static bool test(bool self)
         {
@@ -401,7 +465,7 @@ namespace bustache
     };
 
     template<>
-    struct bustache::impl_print<bool>
+    struct impl_print<bool>
     {
         static void print(bool self, output_handler os, char const* fmt)
         {
@@ -410,13 +474,13 @@ namespace bustache
     };
 
     template<Arithmetic T>
-    struct bustache::impl_model<T>
+    struct impl_model<T>
     {
         static constexpr model kind = model::atom;
     };
 
     template<Arithmetic T>
-    struct bustache::impl_test<T>
+    struct impl_test<T>
     {
         static bool test(T self)
         {
@@ -424,27 +488,26 @@ namespace bustache
         }
     };
 
-#if 0
     template<Arithmetic T>
-    struct bustache::impl_print<T>
+    struct impl_print<T>
     {
         static void print(T self, output_handler os, char const* fmt)
         {
-            fmt::memory_buffer out;
-            fmt::format_to(out, "{}", self);
-            os(out.data(), out.size());
+            char buf[256];
+            auto const [p, e] = std::to_chars(std::begin(buf), std::end(buf), self);
+            if (e == std::errc())
+                os(buf, p - buf);
         }
     };
-#endif
-    
+
     template<String T>
-    struct bustache::impl_model<T>
+    struct impl_model<T>
     {
         static constexpr model kind = model::atom;
     };
 
     template<String T>
-    struct bustache::impl_print<T>
+    struct impl_print<T>
     {
         static void print(std::string_view self, output_handler os, char const* fmt)
         {
@@ -453,13 +516,13 @@ namespace bustache
     };
 
     template<StrValueMap T>
-    struct bustache::impl_model<T>
+    struct impl_model<T>
     {
         static constexpr model kind = model::object;
     };
 
     template<StrValueMap T>
-    struct bustache::impl_object<T>
+    struct impl_object<T>
     {
         static void get(T const& self, std::string const& key, value_handler visit)
         {
@@ -469,13 +532,13 @@ namespace bustache
     };
 
     template<ValueRange T> requires !String<T> && !StrValueMap<T>
-    struct bustache::impl_model<T>
+    struct impl_model<T>
     {
         static constexpr model kind = model::list;
     };
 
     template<ValueRange T>
-    struct bustache::impl_test<T>
+    struct impl_test<T>
     {
         static bool test(T const& self)
         {
@@ -484,7 +547,7 @@ namespace bustache
     };
 
     template<ValueRange T>
-    struct bustache::impl_list<T>
+    struct impl_list<T>
     {
         static void iterate(T const& self, value_handler visit)
         {
@@ -494,13 +557,13 @@ namespace bustache
     };
 
     template<String K, Value V>
-    struct bustache::impl_model<std::pair<K, V>>
+    struct impl_model<std::pair<K, V>>
     {
         static constexpr model kind = model::object;
     };
 
     template<String K, Value V>
-    struct bustache::impl_object<std::pair<K, V>>
+    struct impl_object<std::pair<K, V>>
     {
         static void get(std::pair<K, V> const& self, std::string const& key, value_handler visit)
         {
@@ -509,6 +572,15 @@ namespace bustache
             if (key == "value")
                 return visit(&self.second);
             return visit(nullptr);
+        }
+    };
+
+    template<Value... T>
+    struct impl_compatible<std::variant<T...>>
+    {
+        static value_ptr get_value_ptr(std::variant<T...> const& self)
+        {
+            return std::visit([](auto const& val) { return value_ptr(&val); }, self);
         }
     };
 }

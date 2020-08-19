@@ -1,12 +1,12 @@
 /*//////////////////////////////////////////////////////////////////////////////
-    Copyright (c) 2018 Jamboree
+    Copyright (c) 2018-2020 Jamboree
 
     Distributed under the Boost Software License, Version 1.0. (See accompanying
     file LICENSE_1_0.txt or copy at http://www.boost.org/LICENSE_1_0.txt)
 //////////////////////////////////////////////////////////////////////////////*/
 #define CATCH_CONFIG_MAIN
 #include <catch.hpp>
-#include <bustache/model.hpp>
+#include <bustache/render/string.hpp>
 
 struct Inner
 {
@@ -31,85 +31,141 @@ struct RangeRange : Range
     RangeRange(int a, int b) noexcept : Range{a, b} {}
 };
 
-namespace bustache
+template<>
+struct bustache::impl_model<Inner>
 {
-    template<>
-    struct object_trait<Inner>
+    static constexpr model kind = model::object;
+};
+
+template<>
+struct bustache::impl_object<Inner>
+{
+    static void get(Inner const& self, std::string const& key, value_handler visit)
     {
-        static value_ptr get(Inner const& self, std::string const& key, value_holder&)
-        {
-            if (key == "i32")
-                return value_view(self.i32).get_pointer();
-            if (key == "str")
-                return value_view(self.str).get_pointer();
-            return nullptr;
-        }
-    };
+        if (key == "i32")
+            return visit(&self.i32);
+        if (key == "str")
+            return visit(&self.str);
+        return visit(nullptr);
+    }
+};
 
-    template<>
-    struct object_trait<Phantom>
+template<>
+struct bustache::impl_model<Phantom>
+{
+    static constexpr model kind = model::object;
+};
+
+template<>
+struct bustache::impl_object<Phantom>
+{
+    static void get(Phantom const&, std::string const& key, value_handler visit)
     {
-        static value_ptr get(Phantom const&, std::string const& key, value_holder& hold)
+        if (key == "age")
         {
-            if (key == "age")
-                return hold(10);
-            if (key == "name")
-                return hold("Alice");
-            return nullptr;
+            int age = 10;
+            return visit(&age);
         }
-    };
+        if (key == "name")
+        {
+            std::string_view name("Alice");
+            return visit(&name);
+        }
+        return visit(nullptr);
+    }
+};
 
-    template<>
-    struct object_trait<Outer>
+template<>
+struct bustache::impl_model<Outer>
+{
+    static constexpr model kind = model::object;
+};
+
+template<>
+struct bustache::impl_object<Outer>
+{
+    static void get(Outer const& self, std::string const& key, value_handler visit)
     {
-        static value_ptr get(Outer const& self, std::string const& key, value_holder& hold)
+        if (key == "inner")
+            return visit(&self.inner);
+        if (key == "phantom")
         {
-            if (key == "inner")
-                return hold(object_view(self.inner));
-            if (key == "phantom")
-                return hold.object(Phantom{});
-            return nullptr;
+            Phantom phantom;
+            return visit(&phantom);
         }
-    };
+        return visit(nullptr);
+    }
+};
 
-    template<>
-    struct list_trait<Range>
+template<>
+struct bustache::impl_model<Range>
+{
+    static constexpr model kind = model::list;
+};
+
+template<>
+struct bustache::impl_test<Range>
+{
+    static bool test(Range const& self)
     {
-        static bool empty(Range const& self)
-        {
-            return self.a == self.b;
-        }
+        return self.a != self.b;
+    }
+};
 
-        static std::uintptr_t begin_cursor(Range const&)
-        {
-            return 0;
-        }
-
-        static value_ptr next(Range const& self, std::uintptr_t& state, value_holder& hold)
-        {
-            auto i = self.a + int(state);
-            if (i == self.b)
-                return nullptr;
-            ++state;
-            return hold(i);
-        }
-
-        static void end_cursor(Range const&, std::uintptr_t) noexcept {}
-    };
-
-    template<>
-    struct list_trait<RangeRange> : list_trait<Range>
+template<>
+struct bustache::impl_list<Range>
+{
+    static void iterate(Range const& self, value_handler visit)
     {
-        static value_ptr next(RangeRange const& self, std::uintptr_t& state, value_holder& hold)
+        for (int i = self.a; i != self.b; ++i)
+            visit(&i);
+    }
+};
+
+template<>
+struct bustache::impl_print<Range>
+{
+    static void print(Range const& self, output_handler os, char const*)
+    {
+        if (int i = self.a; i != self.b)
         {
-            auto i = self.a + int(state);
-            if (i == self.b)
-                return nullptr;
-            ++state;
-            return hold.list(Range{1, i + 1});
+            impl_print<int>::print(i, os, nullptr);
+            while (++i != self.b)
+            {
+                os(",", 1);
+                impl_print<int>::print(i, os, nullptr);
+            }
         }
-    };
-}
+    }
+};
+
+template<>
+struct bustache::impl_model<RangeRange>
+{
+    static constexpr model kind = model::list;
+};
+
+template<>
+struct bustache::impl_test<RangeRange>
+{
+    static bool test(RangeRange const& self)
+    {
+        return self.a != self.b;
+    }
+};
+
+template<>
+struct bustache::impl_list<RangeRange>
+{
+    static void iterate(RangeRange const& self, value_handler visit)
+    {
+        for (int i = self.a; i != self.b; ++i)
+        {
+            Range sub{1, i + 1};
+            visit(&sub);
+        }
+    }
+};
 
 using namespace bustache;
 
@@ -119,13 +175,13 @@ TEST_CASE("custom_object")
 
     CHECK(to_string(
         "inner:{{#inner}}(i32:{{i32}}, str:{{str}}){{/inner}}\n"
-        "phantom:{{#phantom}}(name:{{name}}, age:{{age}}){{/phantom}}\n"_fmt(object_view(outer)))
+        "phantom:{{#phantom}}(name:{{name}}, age:{{age}}){{/phantom}}\n"_fmt(outer))
         ==
         "inner:(i32:42, str:Ah-ha)\n"
         "phantom:(name:Alice, age:10)\n");
 
     CHECK(to_string(
-        "{{inner.i32}};{{inner.str}};{{phantom.name}};{{phantom.age}};"_fmt(object_view(outer)))
+        "{{inner.i32}};{{inner.str}};{{phantom.name}};{{phantom.age}};"_fmt(outer))
         ==
         "42;Ah-ha;Alice;10;");
 }
@@ -135,28 +191,28 @@ TEST_CASE("custom_list")
     Range range{1, 11};
 
     CHECK(to_string(
-        "{{#.}}{{.}};{{/.}}"_fmt(list_view(range)))
+        "{{#.}}{{.}};{{/.}}"_fmt(range))
         ==
         "1;2;3;4;5;6;7;8;9;10;");
 
     CHECK(to_string(
-        "{{.}}"_fmt(list_view(range)))
+        "{{.}}"_fmt(range))
         ==
         "1,2,3,4,5,6,7,8,9,10");
 
     CHECK(to_string(
-        "{{^.}}nothing{{/.}}"_fmt(list_view(range)))
+        "{{^.}}nothing{{/.}}"_fmt(range))
         ==
         "");
 
     CHECK(to_string(
-        "{{^.}}something{{/.}}"_fmt(list_view(Range{})))
+        "{{^.}}something{{/.}}"_fmt(Range{}))
         ==
         "something");
 
 
     CHECK(to_string(
-        "{{#.}}{{.}}\n{{/.}}"_fmt(list_view(RangeRange{1, 4})))
+        "{{#.}}{{.}}\n{{/.}}"_fmt(RangeRange{1, 4}))
         ==
         "1\n"
         "1,2\n"

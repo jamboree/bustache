@@ -4,8 +4,8 @@
     Distributed under the Boost Software License, Version 1.0. (See accompanying
     file LICENSE_1_0.txt or copy at http://www.boost.org/LICENSE_1_0.txt)
 //////////////////////////////////////////////////////////////////////////////*/
-#ifndef BUSTACHE_GENERATE_OSTREAM_HPP_INCLUDED
-#define BUSTACHE_GENERATE_OSTREAM_HPP_INCLUDED
+#ifndef BUSTACHE_RENDER_OSTREAM_HPP_INCLUDED
+#define BUSTACHE_RENDER_OSTREAM_HPP_INCLUDED
 
 #include <iostream>
 #include <bustache/render.hpp>
@@ -22,28 +22,6 @@ namespace bustache { namespace detail
             out.write(data, bytes);
         }
     };
-
-    inline no_context get_context(void const*)
-    {
-        return {};
-    }
-
-    template<class T>
-    inline T const& get_context(manip_context<T> const* p)
-    {
-        return p->context;
-    }
-
-    inline no_escape_t get_escape(void const*)
-    {
-        return {};
-    }
-
-    template<class T>
-    inline T const& get_escape(manip_escape<T> const* p)
-    {
-        return p->escape;
-    }
 }}
 
 namespace bustache
@@ -52,8 +30,8 @@ namespace bustache
     inline void render_ostream
     (
         std::basic_ostream<CharT, Traits>& out, format const& fmt,
-        T const& data, context_handler context = no_context{},
-        Escape escape = {}, unresolved_handler f = default_unresolved_handler{}
+        T const& data, context_handler context = no_context_t{},
+        Escape escape = {}, unresolved_handler f = nullptr
     )
     {
         render(detail::ostream_sink<CharT, Traits>{out}, fmt, data, context, escape, f);

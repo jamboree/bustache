@@ -18,6 +18,5 @@ function(add_catch_test name)
 endfunction()
 
 add_catch_test(specs)
-add_catch_test(variant)
 add_catch_test(unresolved_handler)
 add_catch_test(udt)

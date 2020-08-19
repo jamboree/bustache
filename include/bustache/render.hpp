@@ -11,25 +11,19 @@
 
 namespace bustache
 {
-    using unresolved_handler = fn_ref<value_ptr(std::string const&)>;
-
-    struct default_unresolved_handler
-    {
-        value_ptr operator()(std::string const& /*key*/) const
-        {
-            return nullptr;
-        }
-    };
+    using unresolved_handler = fn_ptr<value_ptr(std::string const&)>;
 
     using context_handler = fn_ref<format const* (std::string const&)>;
 
-    struct no_context
+    struct no_context_t
     {
         format const* operator()(std::string const&) const
         {
             return nullptr;
         }
     };
+
+    constexpr no_context_t no_context{};
 
     template<class Map>
     struct map_context
@@ -110,6 +104,28 @@ namespace bustache::detail
         }
     };
 
+    inline no_context_t get_context(void const*)
+    {
+        return {};
+    }
+
+    template<class T>
+    inline T const& get_context(manip_context<T> const* p)
+    {
+        return p->context;
+    }
+
+    inline no_escape_t get_escape(void const*)
+    {
+        return {};
+    }
+
+    template<class T>
+    inline T const& get_escape(manip_escape<T> const* p)
+    {
+        return p->escape;
+    }
+
     void render
     (
         output_handler raw_os, output_handler escape_os, format const& fmt, value_ptr data,
@@ -130,8 +146,8 @@ namespace bustache
     inline void render
     (
         Sink const& os, format const& fmt, T const& data,
-        context_handler context = no_context{}, Escape escape = {},
-        unresolved_handler f = default_unresolved_handler{}
+        context_handler context = no_context_t{}, Escape escape = {},
+        unresolved_handler f = nullptr
     )
     {
         detail::render(os, escape(os), fmt, &data, context, f);

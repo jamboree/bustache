@@ -1,29 +1,46 @@
 /*//////////////////////////////////////////////////////////////////////////////
-    Copyright (c) 2017-2018 Jamboree
+    Copyright (c) 2017-2020 Jamboree
 
     Distributed under the Boost Software License, Version 1.0. (See accompanying
     file LICENSE_1_0.txt or copy at http://www.boost.org/LICENSE_1_0.txt)
 //////////////////////////////////////////////////////////////////////////////*/
 #define CATCH_CONFIG_MAIN
 #include <catch.hpp>
-#include <bustache/generate/string.hpp>
+#include <bustache/render/string.hpp>
 
 using namespace bustache;
 
-value throw_on_unresolved(std::string const& key)
+value_ptr throw_on_unresolved(std::string const& key)
 {
     throw std::runtime_error("unresolved key: " + key);
 }
 
-value banana_on_unresolved(std::string const& key)
+value_ptr banana_on_unresolved(std::string const& key)
 {
-    return "banana";
+    static constexpr std::string_view banana("banana");
+    return &banana;
 }
+
+struct empty {};
+
+template<>
+struct bustache::impl_model<empty>
+{
+    static constexpr model kind = model::object;
+};
+
+template<>
+struct bustache::impl_object<empty>
+{
+    static void get(empty, std::string const&, value_handler visit)
+    {
+        visit(nullptr);
+    }
+};
 
 TEST_CASE("unresolved")
 {
     format const fmt("before-{{unresolved}}-after");
-    object const empty;
 
     std::string out;
 
@@ -31,7 +48,7 @@ TEST_CASE("unresolved")
     {
         CHECK_THROWS_WITH
         (
-            generate_string(out, fmt, empty, no_context, normal, throw_on_unresolved),
+            render_string(out, fmt, empty{}, no_context, no_escape, throw_on_unresolved),
             "unresolved key: unresolved"
         );
 
@@ -40,7 +57,7 @@ TEST_CASE("unresolved")
 
     SECTION("default value")
     {
-        generate_string(out, fmt, empty, no_context, normal, banana_on_unresolved);
+        render_string(out, fmt, empty{}, no_context, no_escape, banana_on_unresolved);
 
         CHECK(out == "before-banana-after");
     }

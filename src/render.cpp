@@ -6,6 +6,7 @@
 //////////////////////////////////////////////////////////////////////////////*/
 
 #include <bustache/render.hpp>
+#include <cassert>
 
 namespace bustache::detail
 {
@@ -27,7 +28,7 @@ namespace bustache::detail
 
     inline object_ptr get_object(value_ptr val)
     {
-        if (val && val.vptr->kind == model::object)
+        if (val.vptr->kind == model::object)
             return {val.data, static_cast<value_vtable const*>(val.vptr)->get};
         return {0, object_trait::get_default};
     }
@@ -36,20 +37,28 @@ namespace bustache::detail
     {
         content_scope const* const parent;
         object_ptr data;
+    };
 
-        template<class Visit>
-        void lookup(std::string const& key, Visit const& visit) const
+    template<class Visit>
+    void lookup(content_scope const* scope, std::string const& key, Visit const& visit)
+    {
+        bool found = false;
+        do
         {
-            data.get(key, [&](value_ptr val)
+            scope->data.get(key, [&](value_ptr val)
             {
                 if (val)
-                    return visit(val);
-                if (parent)
-                    return parent->lookup(key, visit);
-                visit(nullptr);
+                {
+                    visit(val);
+                    found = true;
+                }
             });
-        }
-    };
+            if (found)
+                return;
+            scope = scope->parent;
+        } while (scope);
+        visit(nullptr);
+    }
 
     struct nested_resolver
     {
@@ -101,7 +110,7 @@ namespace bustache::detail
         output_handler raw_os;
         output_handler escape_os;
         context_handler context;
-        unresolved_handler handle_unresolved;
+        unresolved_handler variable_unresolved;
         std::string indent;
         bool needs_indent;
 
@@ -113,7 +122,7 @@ namespace bustache::detail
         )
             : scope(&scope), cursor(cursor)
             , raw_os(raw_os), escape_os(escape_os), context(context)
-            , handle_unresolved(f)
+            , variable_unresolved(f)
             , needs_indent()
         {}
 
@@ -150,7 +159,7 @@ namespace bustache::detail
                 auto k0 = ki;
                 while (ki != ke && *ki != '.') ++ki;
                 key_cache.assign(k0, ki);
-                scope->lookup(key_cache, on_value(visit, ki, ke));
+                lookup(scope, key_cache, on_value(visit, ki, ke));
             }
         }
 
@@ -163,10 +172,10 @@ namespace bustache::detail
         void expand(ast::content_list const& contents)
         {
             for (auto const& content : contents)
-                bustache::visit(*this, content);
+                visit(*this, content);
         }
 
-        void expand_with_scope(ast::content_list const& contents, object_ptr data)
+        void expand_on_object(ast::content_list const& contents, object_ptr data)
         {
             content_scope curr{scope, data};
             scope = &curr;
@@ -174,17 +183,25 @@ namespace bustache::detail
             scope = curr.parent;
         }
 
-        bool expand_value(char tag, ast::content_list const& contents, value_ptr val);
+        void expand_on_value(ast::content_list const& contents, value_ptr val)
+        {
+            if (auto obj = get_object(val))
+                expand_on_object(contents, obj);
+            else
+                expand(contents);
+        }
+
+        bool expand_section(char tag, ast::content_list const& contents, value_ptr val);
 
         void handle_section(ast::section const& section, value_ptr val);
 
-        void resolve_and_handle(std::string const& key, value_handler handle);
+        void resolve_and_handle(std::string const& key, unresolved_handler unresolved, value_handler handle);
 
         void operator()(ast::text const& text);
 
         void operator()(ast::variable const& variable)
         {
-            resolve_and_handle(variable.key, [&](value_ptr val)
+            resolve_and_handle(variable.key, variable_unresolved, [&](value_ptr val)
             {
                 handle_variable(variable, val);
             });
@@ -192,7 +209,7 @@ namespace bustache::detail
 
         void operator()(ast::section const& section)
         {
-            resolve_and_handle(section.key, [&](value_ptr val)
+            resolve_and_handle(section.key, nullptr, [&](value_ptr val)
             {
                 handle_section(section, val);
             });
@@ -200,13 +217,13 @@ namespace bustache::detail
 
         void operator()(ast::partial const& partial);
 
-        void operator()(ast::block const& block)
+        void operator()(ast::inheritance const& inheritance)
         {
-            auto pc = find_override(block.key);
+            auto pc = find_override(inheritance.key);
             if (!pc)
-                pc = &block.contents;
+                pc = &inheritance.contents;
             for (auto const& content : *pc)
-                bustache::visit(*this, content);
+                visit(*this, content);
         }
 
         void operator()(ast::null) const {} // never called
@@ -227,16 +244,19 @@ namespace bustache::detail
     {
         switch (val.vptr->kind)
         {
+        case model::lazy_value:
+            static_cast<lazy_value_vtable const*>(val.vptr)->call(val.data, nullptr, [=](value_ptr val)
+            {
+                print_value(os, val);
+            });
+            break;
         case model::lazy_format:
         {
             auto const fmt = static_cast<lazy_format_vtable const*>(val.vptr)->call(val.data, nullptr);
             for (auto const& content : fmt.contents())
-                bustache::visit(*this, content);
+                visit(*this, content);
             break;
         }
-        case model::lazy_value:
-            print_value(os, static_cast<lazy_value_vtable const*>(val.vptr)->call(val.data, nullptr));
-            break;
         default:
             static_cast<value_vtable const*>(val.vptr)->print(val.data, os, nullptr);
         }
@@ -252,7 +272,7 @@ namespace bustache::detail
         print_value(variable.tag ? raw_os : escape_os, val);
     }
 
-    bool content_visitor::expand_value(char tag, ast::content_list const& contents, value_ptr val)
+    bool content_visitor::expand_section(char tag, ast::content_list const& contents, value_ptr val)
     {
         bool inverted = false;
         auto kind = val.vptr->kind;
@@ -272,10 +292,7 @@ namespace bustache::detail
             }
         }
         else if (tag == '^') // Inverted lazy.
-        {
-            kind = model::atom;
-            inverted = true;
-        }
+            return false;
         switch (kind)
         {
         case model::null:
@@ -284,7 +301,7 @@ namespace bustache::detail
             return static_cast<value_vtable const*>(val.vptr)->test(val.data) ^ inverted;
         case model::object:
             if (!inverted)
-                expand_with_scope(contents, {val.data, static_cast<value_vtable const*>(val.vptr)->get});
+                expand_on_object(contents, {val.data, static_cast<value_vtable const*>(val.vptr)->get});
             return false;
         case model::list:
         {
@@ -292,19 +309,25 @@ namespace bustache::detail
             if (inverted)
                 return !static_cast<value_vtable const*>(val.vptr)->test(val.data);
             if (!vt->iterate)
-                expand_with_scope(contents, {val.data, static_cast<value_vtable const*>(val.vptr)->get});
+                expand_on_value(contents, val);
             else
             {
                 vt->iterate(val.data, [&](value_ptr val)
                 {
                     cursor = val;
-                    if (auto obj = get_object(val))
-                        expand_with_scope(contents, obj);
-                    else
-                        expand(contents);
+                    expand_on_value(contents, val);
                 });
             }
             return false;
+        }
+        case model::lazy_value:
+        {
+            bool ret = false;
+            static_cast<lazy_value_vtable const*>(val.vptr)->call(val.data, &contents, [&](value_ptr val)
+            {
+                ret = expand_section(tag, contents, val);
+            });
+            return ret;
         }
         case model::lazy_format:
         {
@@ -312,12 +335,9 @@ namespace bustache::detail
                 return true;
             auto const fmt = static_cast<lazy_format_vtable const*>(val.vptr)->call(val.data, &contents);
             for (auto const& content : fmt.contents())
-                bustache::visit(*this, content);
+                visit(*this, content);
             return false;
         }
-        case model::lazy_value:
-            val = static_cast<lazy_value_vtable const*>(val.vptr)->call(val.data, &contents);
-            return expand_value(tag, contents, val);
         }
         std::abort(); // Unreachable.
     }
@@ -326,15 +346,15 @@ namespace bustache::detail
     {
         auto old_cursor = cursor;
         cursor = val;
-        if (expand_value(section.tag, section.contents, val))
+        if (expand_section(section.tag, section.contents, val))
         {
             for (auto const& content : section.contents)
-                bustache::visit(*this, content);
+                visit(*this, content);
         }
         cursor = old_cursor;
     }
 
-    void content_visitor::resolve_and_handle(std::string const& key, value_handler handle)
+    void content_visitor::resolve_and_handle(std::string const& key, unresolved_handler unresolved, value_handler handle)
     {
         resolve(key, [&](value_ptr val, char const* sub)
         {
@@ -349,7 +369,7 @@ namespace bustache::detail
             }
             else if (val)
                 return handle(val);
-            handle(handle_unresolved(key));
+            handle(unresolved ? unresolved(key) : nullptr);
         });
     }
 
@@ -378,8 +398,8 @@ namespace bustache::detail
                 i0 = i;
             }
         }
-        needs_indent = *i == '\n';
-        raw_os(i0, n);
+        needs_indent = *i++ == '\n';
+        raw_os(i0, i - i0);
     }
 
     void content_visitor::operator()(ast::partial const& partial)
@@ -396,7 +416,7 @@ namespace bustache::detail
             if (!partial.overriders.empty())
                 chain.push_back(&partial.overriders);
             for (auto const& content : p->contents())
-                bustache::visit(*this, content);
+                visit(*this, content);
             chain.resize(old_chain);
             indent.resize(old_size);
         }
@@ -410,6 +430,6 @@ namespace bustache::detail
             scope, data, raw_os, escape_os, context, f
         };
         for (auto const& content : fmt.contents())
-            bustache::visit(visitor, content);
+            visit(visitor, content);
     }
 }
