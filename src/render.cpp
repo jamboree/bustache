@@ -280,14 +280,14 @@ namespace bustache::detail
         {
             switch (tag)
             {
+            case '^':
+                inverted = true;
+                [[fallthrough]];
             case '?':
                 kind = model::atom;
                 break;
             case '*':
                 kind = model::list;
-                break;
-            case '^':
-                inverted = true;
                 break;
             }
         }
@@ -300,14 +300,11 @@ namespace bustache::detail
         case model::atom:
             return static_cast<value_vtable const*>(val.vptr)->test(val.data) ^ inverted;
         case model::object:
-            if (!inverted)
-                expand_on_object(contents, {val.data, static_cast<value_vtable const*>(val.vptr)->get});
+            expand_on_object(contents, {val.data, static_cast<value_vtable const*>(val.vptr)->get});
             return false;
         case model::list:
         {
             auto const vt = static_cast<value_vtable const*>(val.vptr);
-            if (inverted)
-                return !static_cast<value_vtable const*>(val.vptr)->test(val.data);
             if (!vt->iterate)
                 expand_on_value(contents, val);
             else

@@ -171,7 +171,7 @@ namespace bustache
     concept Arithmetic = std::is_arithmetic_v<T>;
 
     template<class T>
-    concept String = std::convertible_to<T, std::string_view>;
+    concept String = std::convertible_to<T, std::string_view> && !std::same_as<T, std::nullptr_t>;
 
     template<class T>
     concept ValueRange = requires(T const& t)
@@ -413,6 +413,18 @@ namespace bustache::detail
 
     template<class T>
     constexpr value_vtable value_vt{type<T>{}};
+
+    template<model K, class T>
+    struct check_model;
+
+    template<class T>
+    struct check_model<model::atom, T> : impl_test<T>, impl_print<T> {};
+
+    template<class T>
+    struct check_model<model::object, T> : impl_object<T> {};
+
+    template<class T>
+    struct check_model<model::list, T> : impl_list<T> {};
 }
 
 namespace bustache
@@ -431,6 +443,7 @@ namespace bustache
     template<class T>
     inline void value_ptr::init_model(T const* p) noexcept
     {
+        sizeof(detail::check_model<impl_model<T>::kind, T>);
         data = detail::encode_data(p);
         vptr = &detail::value_vt<T>;
     }
@@ -505,6 +518,15 @@ namespace bustache
     {
         static constexpr model kind = model::atom;
     };
+    
+    template<String T>
+    struct impl_test<T>
+    {
+        static bool test(std::string_view self)
+        {
+            return !self.empty();
+        }
+    };
 
     template<String T>
     struct impl_print<T>
@@ -520,6 +542,9 @@ namespace bustache
     {
         static constexpr model kind = model::object;
     };
+
+    template<class T> requires (impl_model<T>::kind == model::object)
+    struct impl_test<T>; // Intentionally undefined.
 
     template<StrValueMap T>
     struct impl_object<T>
@@ -537,18 +562,23 @@ namespace bustache
         static constexpr model kind = model::list;
     };
 
-    template<ValueRange T>
+    template<class T> requires (impl_model<T>::kind == model::list)
     struct impl_test<T>
     {
         static bool test(T const& self)
         {
-            return !std::empty(self);
+            return !impl_list<T>::empty(self);
         }
     };
 
     template<ValueRange T>
     struct impl_list<T>
     {
+        static bool empty(T const& self)
+        {
+            return std::empty(self);
+        }
+
         static void iterate(T const& self, value_handler visit)
         {
             for (auto const& elem : self)
@@ -572,6 +602,15 @@ namespace bustache
             if (key == "value")
                 return visit(&self.second);
             return visit(nullptr);
+        }
+    };
+
+    template<>
+    struct impl_compatible<std::nullptr_t>
+    {
+        static value_ptr get_value_ptr(std::nullptr_t)
+        {
+            return nullptr;
         }
     };
 

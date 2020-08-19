@@ -21,23 +21,6 @@ value_ptr banana_on_unresolved(std::string const& key)
     return &banana;
 }
 
-struct empty {};
-
-template<>
-struct bustache::impl_model<empty>
-{
-    static constexpr model kind = model::object;
-};
-
-template<>
-struct bustache::impl_object<empty>
-{
-    static void get(empty, std::string const&, value_handler visit)
-    {
-        visit(nullptr);
-    }
-};
-
 TEST_CASE("unresolved")
 {
     format const fmt("before-{{unresolved}}-after");
@@ -48,7 +31,7 @@ TEST_CASE("unresolved")
     {
         CHECK_THROWS_WITH
         (
-            render_string(out, fmt, empty{}, no_context, no_escape, throw_on_unresolved),
+            render_string(out, fmt, nullptr, no_context, no_escape, throw_on_unresolved),
             "unresolved key: unresolved"
         );
 
@@ -57,7 +40,7 @@ TEST_CASE("unresolved")
 
     SECTION("default value")
     {
-        render_string(out, fmt, empty{}, no_context, no_escape, banana_on_unresolved);
+        render_string(out, fmt, nullptr, no_context, no_escape, banana_on_unresolved);
 
         CHECK(out == "before-banana-after");
     }

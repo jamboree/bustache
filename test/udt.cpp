@@ -104,17 +104,13 @@ struct bustache::impl_model<Range>
 };
 
 template<>
-struct bustache::impl_test<Range>
-{
-    static bool test(Range const& self)
-    {
-        return self.a != self.b;
-    }
-};
-
-template<>
 struct bustache::impl_list<Range>
 {
+    static bool empty(Range const& self)
+    {
+        return self.a == self.b;
+    }
+
     static void iterate(Range const& self, value_handler visit)
     {
         for (int i = self.a; i != self.b; ++i)
@@ -146,17 +142,13 @@ struct bustache::impl_model<RangeRange>
 };
 
 template<>
-struct bustache::impl_test<RangeRange>
-{
-    static bool test(RangeRange const& self)
-    {
-        return self.a != self.b;
-    }
-};
-
-template<>
 struct bustache::impl_list<RangeRange>
 {
+    static bool empty(RangeRange const& self)
+    {
+        return self.a == self.b;
+    }
+
     static void iterate(RangeRange const& self, value_handler visit)
     {
         for (int i = self.a; i != self.b; ++i)
