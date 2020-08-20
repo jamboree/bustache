@@ -51,7 +51,7 @@ static void bustache_usage(benchmark::State& state)
     using namespace bustache;
     using namespace test;
 
-    std::unordered_map<std::string, bustache::format> context
+    test::context context
     {
         {"href", "href=\"{{url}}\""_fmt}
     };
@@ -221,8 +221,9 @@ static void kainjow_usage(benchmark::State& state)
         },
         {"empty", false},
         {"count", lambda{[&n](const std::string&) { return std::to_string(++n); }}},
+        // Kainjow cannot print numbers and boolean, can only use strings here.
         {"array", list{"1", "2", "3"}},
-        {"a", object{{"b", object{{"c", true}}}}},
+        {"a", object{{"b", object{{"c", "true"}}}}},
         {"comments",
             list
             {
@@ -242,9 +243,11 @@ static void kainjow_usage(benchmark::State& state)
                     {"body", "break\nup"}
                 }
             }
-        }
+        },
+        // In Kainjow, partail belongs to data.
+        {"href", partial{[]() { return "href=\"{{url}}\""; }}}
     };
-
+    
     mustache fmt(tmp);
 
     while (state.KeepRunning())
@@ -255,7 +258,7 @@ static void kainjow_usage(benchmark::State& state)
 }
 
 BENCHMARK(bustache_usage);
-BENCHMARK(mstch_usage);
+//BENCHMARK(mstch_usage);
 BENCHMARK(kainjow_usage);
 
 BENCHMARK_MAIN();
