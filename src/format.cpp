@@ -4,7 +4,6 @@
     Distributed under the Boost Software License, Version 1.0. (See accompanying
     file LICENSE_1_0.txt or copy at http://www.boost.org/LICENSE_1_0.txt)
 //////////////////////////////////////////////////////////////////////////////*/
-#include <cctype>
 #include <cassert>
 #include <utility>
 #include <cstring>
@@ -17,21 +16,42 @@ namespace bustache::parser { namespace
 
     struct delim
     {
-        std::string open;
-        std::string close;
+        std::string_view open;
+        std::string_view close;
     };
 
-    inline void skip(I& i, I e) noexcept
+    constexpr bool is_space(char c)
     {
-        while (i != e && std::isspace(*i))
-            ++i;
+        switch (c)
+        {
+        case ' ':
+        case '\f':
+        case '\n':
+        case '\r':
+        case '\t':
+        case '\v':
+            return true;
+        }
+        return false;
     }
 
-    inline bool parse_char(I& i, I e, char c) noexcept
+    // Return true if it ends.
+    inline bool skip(I& i, I e) noexcept
     {
-        if (i != e && *i == c)
+        while (i != e)
         {
+            if (!is_space(*i))
+                return false;
             ++i;
+        }
+        return true;
+    }
+
+    inline bool parse_end_brace(I& i, I e) noexcept
+    {
+        if (i != e && *i == '}')
+        {
+            skip(++i, e);
             return true;
         }
         return false;
@@ -52,27 +72,25 @@ namespace bustache::parser { namespace
         return true;
     }
 
-    void expect_key(I b, I& i, I e, delim& d, std::string& attr, bool suffix)
+    void expect_key(I b, I& i, I e, delim& d, std::string& attr, bool not_brace)
     {
         skip(i, e);
-        I const i0 = i;
-        while (i != e)
+        for (I const i0 = i; i != e; ++i)
         {
             I const i1 = i;
             skip(i, e);
-            if (!suffix || parse_char(i, e, '}'))
+            if (not_brace || parse_end_brace(i, e))
             {
-                skip(i, e);
                 if (parse_lit(i, e, d.close))
                 {
-                    attr.assign(i0, i1);
                     if (i0 == i1)
                         throw format_error(error_badkey, i - b);
+                    attr.assign(i0, i1);
                     return;
                 }
             }
-            if (i != e)
-                ++i;
+            if (i == e)
+                break;
         }
         throw format_error(error_badkey, i - b);
     }
@@ -102,7 +120,7 @@ namespace bustache::parser { namespace
                     i0 = ++i;
                     break;
                 }
-                else if (std::isspace(*i))
+                else if (is_space(*i))
                     ++i;
                 else
                 {
@@ -116,7 +134,7 @@ namespace bustache::parser { namespace
 
     inline bool expect_block(I b, I& i, I e, delim& d, bool& pure, ast::block& attr)
     {
-        expect_key(b, i, e, d, attr.key, false);
+        expect_key(b, i, e, d, attr.key, true);
         I i0 = process_pure(i, e, pure);
         bool standalone = pure;
         parse_contents(b, i0, i, e, d, pure, attr.contents, attr.key);
@@ -125,7 +143,7 @@ namespace bustache::parser { namespace
 
     bool expect_inheritance(I b, I& i, I e, delim& d, bool& pure, ast::partial& attr)
     {
-        expect_key(b, i, e, d, attr.key, false);
+        expect_key(b, i, e, d, attr.key, true);
         I i0 = process_pure(i, e, pure);
         bool standalone = pure;
         for (std::string_view text;;)
@@ -154,15 +172,15 @@ namespace bustache::parser { namespace
     {
         skip(i, e);
         I i0 = i;
-        while (i != e)
+        for (;;)
         {
-            if (std::isspace(*i))
+            if (i == e)
+                throw format_error(error_baddelim, i - b);
+            if (is_space(*i))
                 break;
             ++i;
         }
-        if (i == e)
-            throw format_error(error_baddelim, i - b);
-        d.open.assign(i0, i);
+        d.open = std::string_view(i0, i - i0);
         skip(i, e);
         i0 = i;
         I i1 = i;
@@ -175,22 +193,20 @@ namespace bustache::parser { namespace
                 i1 = i;
                 break;
             }
-            if (std::isspace(*i))
+            if (is_space(*i))
             {
                 i1 = i;
-                skip(++i, e);
-                if (i == e || *i != '=')
+                if (skip(++i, e) || *i != '=')
                     throw format_error(error_set_delim, i - b);
                 break;
             }
         }
         if (i0 == i1)
             throw format_error(error_baddelim, i - b);
-        std::string new_close(i0, i1);
         skip(++i, e);
         if (!parse_lit(i, e, d.close))
             throw format_error(error_delim, i - b);
-        d.close = std::move(new_close);
+        d.close = std::string_view(i0, i1 - i0);
     }
 
     struct tag_result
@@ -206,8 +222,7 @@ namespace bustache::parser { namespace
         ast::content& attr, std::string_view section
     )
     {
-        skip(i, e);
-        if (i == e)
+        if (skip(i, e))
             throw format_error(error_badkey, i - b);
         tag_result ret{};
         switch (*i)
@@ -224,7 +239,7 @@ namespace bustache::parser { namespace
         }
         case '/':
             skip(++i, e);
-            if (section.empty() || !parse_lit(i, e, section))
+            if (!parse_lit(i, e, section))
                 throw format_error(error_section, i - b);
             skip(i, e);
             if (!parse_lit(i, e, d.close))
@@ -247,7 +262,7 @@ namespace bustache::parser { namespace
         case '>':
         {
             ast::partial a;
-            expect_key(b, ++i, e, d, a.key, false);
+            expect_key(b, ++i, e, d, a.key, true);
             attr = std::move(a);
             ret.check_standalone = pure;
             break;
@@ -257,7 +272,7 @@ namespace bustache::parser { namespace
         {
             ast::variable a;
             a.tag = *i;
-            expect_key(b, ++i, e, d, a.key, a.tag == '{');
+            expect_key(b, ++i, e, d, a.key, a.tag != '{');
             attr = std::move(a);
             pure = false;
             break;
@@ -279,7 +294,7 @@ namespace bustache::parser { namespace
         }
         default:
             ast::variable a;
-            expect_key(b, i, e, d, a.key, false);
+            expect_key(b, i, e, d, a.key, true);
             attr = std::move(a);
             pure = false;
             break;
@@ -302,7 +317,7 @@ namespace bustache::parser { namespace
                 pure = true;
                 i1 = ++i;
             }
-            else if (std::isspace(*i))
+            else if (is_space(*i))
                 ++i;
             else
             {
@@ -321,7 +336,7 @@ namespace bustache::parser { namespace
                                 ++i;
                                 break;
                             }
-                            else if (std::isspace(*i))
+                            else if (is_space(*i))
                                 ++i;
                             else
                             {

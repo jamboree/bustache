@@ -92,7 +92,7 @@ namespace bustache
                 copy_text(text_size());
         }
 
-        explicit format(ast::content_list contents, bool copytext = true)
+        format(ast::content_list contents, bool copytext)
           : _contents(std::move(contents))
         {
             if (copytext)

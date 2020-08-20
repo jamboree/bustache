@@ -15,6 +15,13 @@ namespace bustache::detail
         std::uintptr_t data;
         void(*_get)(std::uintptr_t self, std::string const& key, value_handler visit);
 
+        static object_ptr from(value_ptr val)
+        {
+            if (val.vptr->kind == model::object)
+                return {val.data, static_cast<value_vtable const*>(val.vptr)->get};
+            return {0, object_trait::get_default};
+        }
+
         explicit operator bool() const noexcept
         {
             return !!data;
@@ -25,13 +32,6 @@ namespace bustache::detail
             _get(data, key, visit);
         }
     };
-
-    inline object_ptr get_object(value_ptr val)
-    {
-        if (val.vptr->kind == model::object)
-            return {val.data, static_cast<value_vtable const*>(val.vptr)->get};
-        return {0, object_trait::get_default};
-    }
 
     struct content_scope
     {
@@ -79,7 +79,7 @@ namespace bustache::detail
                     key_cache.assign(k0, ki);
                     return obj.get(key_cache, [this](value_ptr val)
                     {
-                        if (auto const obj = get_object(val))
+                        if (auto const obj = object_ptr::from(val))
                             next(obj);
                     });
                 }
@@ -149,14 +149,14 @@ namespace bustache::detail
             {
                 if (++ki == ke)
                     return visit(cursor, nullptr);
-                auto k0 = ki;
+                auto const k0 = ki;
                 while (*ki != '.' && ++ki != ke);
                 key_cache.assign(k0, ki);
                 scope->data.get(key_cache, on_value(visit, ki, ke));
             }
             else
             {
-                auto k0 = ki;
+                auto const k0 = ki;
                 while (ki != ke && *ki != '.') ++ki;
                 key_cache.assign(k0, ki);
                 lookup(scope, key_cache, on_value(visit, ki, ke));
@@ -185,7 +185,7 @@ namespace bustache::detail
 
         void expand_on_value(ast::content_list const& contents, value_ptr val)
         {
-            if (auto obj = get_object(val))
+            if (auto const obj = object_ptr::from(val))
                 expand_on_object(contents, obj);
             else
                 expand(contents);
@@ -231,9 +231,9 @@ namespace bustache::detail
 
     ast::content_list const* content_visitor::find_override(std::string const& key) const
     {
-        for (auto pm : chain)
+        for (auto const pm : chain)
         {
-            auto it = pm->find(key);
+            auto const it = pm->find(key);
             if (it != pm->end())
                 return &it->second;
         }
@@ -341,7 +341,7 @@ namespace bustache::detail
 
     void content_visitor::handle_section(ast::section const& section, value_ptr val)
     {
-        auto old_cursor = cursor;
+        auto const old_cursor = cursor;
         cursor = val;
         if (expand_section(section.tag, section.contents, val))
         {
@@ -357,7 +357,7 @@ namespace bustache::detail
         {
             if (sub)
             {
-                if (auto obj = get_object(val))
+                if (auto const obj = object_ptr::from(val))
                 {
                     nested_resolver nested{sub, key.data() + key.size(), key_cache, handle};
                     if (nested.next(obj), nested.done)
@@ -405,7 +405,6 @@ namespace bustache::detail
         {
             if (p->contents().empty())
                 return;
-
             auto old_size = indent.size();
             auto old_chain = chain.size();
             indent += partial.indent;
@@ -421,11 +420,8 @@ namespace bustache::detail
 
     void render(output_handler raw_os, output_handler escape_os, format const& fmt, value_ptr data, context_handler context, unresolved_handler f)
     {
-        content_scope scope{nullptr, get_object(data)};
-        content_visitor visitor
-        {
-            scope, data, raw_os, escape_os, context, f
-        };
+        content_scope scope{nullptr, object_ptr::from(data)};
+        content_visitor visitor{scope, data, raw_os, escape_os, context, f};
         for (auto const& content : fmt.contents())
             visit(visitor, content);
     }

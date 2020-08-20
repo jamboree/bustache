@@ -1,7 +1,9 @@
 #include <benchmark/benchmark.h>
-#include <bustache/model.hpp>
-#include <mstch/mstch.hpp>
-#include <mustache.hpp>
+#include <bustache/render/string.hpp>
+#include "model.hpp"
+//#include <mstch/mstch.hpp>
+//#include <mustache.hpp>
+#include "mustache.hpp"
 
 static char tmp[] =
 R"(<h1>{{header}}</h1>
@@ -47,8 +49,9 @@ R"(<h1>{{header}}</h1>
 static void bustache_usage(benchmark::State& state)
 {
     using namespace bustache;
+    using namespace test;
 
-    boost::unordered_map<std::string, bustache::format> context
+    std::unordered_map<std::string, bustache::format> context
     {
         {"href", "href=\"{{url}}\""_fmt}
     };
@@ -81,7 +84,7 @@ static void bustache_usage(benchmark::State& state)
             }
         },
         {"empty", false},
-        {"count", [&n] { return ++n; }},
+        {"count", [&n](...) { return ++n; }},
         {"array", array{1, 2, 3}},
         {"a", object{{"b", object{{"c", true}}}}},
         {"comments",
@@ -111,10 +114,10 @@ static void bustache_usage(benchmark::State& state)
     while (state.KeepRunning())
     {
         n = 0;
-        to_string(fmt(data, context, escape_html));
+        to_string(fmt(data).context(context).escape(escape_html));
     }
 }
-
+#if 0
 static void mstch_usage(benchmark::State& state)
 {
     using namespace mstch;
@@ -184,7 +187,7 @@ static void mstch_usage(benchmark::State& state)
         render(tmp, data, context);
     }
 }
-
+#endif
 static void kainjow_usage(benchmark::State& state)
 {
     using namespace kainjow::mustache;

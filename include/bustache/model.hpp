@@ -100,6 +100,8 @@ namespace bustache::detail
         R(*_call)(std::uintptr_t, T&&...);
     };
 
+    struct content_visitor;
+    struct object_ptr;
 }
 
 namespace bustache
@@ -231,9 +233,6 @@ namespace bustache
 
     struct value_ptr
     {
-        std::uintptr_t data;
-        detail::vtable_base const* vptr;
-
         constexpr value_ptr() { reset(); }
         constexpr value_ptr(std::nullptr_t) { reset(); }
 
@@ -268,6 +267,12 @@ namespace bustache
         {
             *this = impl_compatible<T>::get_value_ptr(*p);
         }
+
+        friend struct detail::content_visitor;
+        friend struct detail::object_ptr;
+
+        std::uintptr_t data;
+        detail::vtable_base const* vptr;
     };
 
     using value_handler = fn_ref<void(value_ptr)>;
