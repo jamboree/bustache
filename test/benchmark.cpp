@@ -111,7 +111,7 @@ static void bustache_usage(benchmark::State& state)
 
     format fmt(tmp);
 
-    while (state.KeepRunning())
+    for (auto _ : state)
     {
         n = 0;
         to_string(fmt(data).context(context).escape(escape_html));
@@ -181,7 +181,7 @@ static void mstch_usage(benchmark::State& state)
         }
     };
 
-    while (state.KeepRunning())
+    for (auto _ : state)
     {
         n = 0;
         render(tmp, data, context);
@@ -250,7 +250,7 @@ static void kainjow_usage(benchmark::State& state)
     
     mustache fmt(tmp);
 
-    while (state.KeepRunning())
+    for (auto _ : state)
     {
         n = 0;
         fmt.render(dat);
