@@ -7,7 +7,6 @@
 #ifndef BUSTACHE_AST_HPP_INCLUDED
 #define BUSTACHE_AST_HPP_INCLUDED
 
-#include <variant>
 #include <unordered_map>
 #include <vector>
 #include <string>
@@ -15,9 +14,27 @@
 
 namespace bustache::ast
 {
-    struct variable;
-    struct section;
-    struct content;
+    enum class type
+    {
+        null,
+        text,
+        var_escaped,
+        var_raw,
+        section,
+        inversion,
+        filter,
+        loop,
+        inheritance,
+        partial
+    };
+
+    struct content
+    {
+        type kind = type::null;
+        unsigned index;
+
+        bool is_null() const { return kind == type::null; }
+    };
 
     using text = std::string_view;
 
@@ -25,27 +42,18 @@ namespace bustache::ast
 
     using override_map = std::unordered_map<std::string, content_list>;
 
-    struct null {};
-
     struct variable
     {
         std::string key;
-        char tag = '\0';
+        unsigned split;
     };
 
     struct block
     {
         std::string key;
         content_list contents;
+        unsigned split;
     };
-
-    struct section : block
-    {
-        char tag;
-        explicit section(char tag = '#') noexcept : tag(tag) {}
-    };
-
-    struct inheritance : block {};
 
     struct partial
     {
@@ -54,11 +62,97 @@ namespace bustache::ast
         override_map overriders;
     };
 
-    struct content : std::variant<null, text, variable, section, partial, inheritance>
+    struct context
     {
-        using variant::variant;
+        std::vector<text> texts;
+        std::vector<variable> variables;
+        std::vector<block> blocks;
+        std::vector<partial> partials;
 
-        bool is_null() const { return !index(); }
+        content add(text node)
+        {
+            content ret{type::text, unsigned(texts.size())};
+            texts.push_back(node);
+            return ret;
+        }
+
+        content add(type kind, variable&& node)
+        {
+            content ret{kind, unsigned(variables.size())};
+            variables.push_back(std::move(node));
+            return ret;
+        }
+
+        content add(type kind, block&& node)
+        {
+            content ret{kind, unsigned(blocks.size())};
+            blocks.push_back(std::move(node));
+            return ret;
+        }
+
+        content add(partial&& node)
+        {
+            content ret{type::partial, unsigned(partials.size())};
+            partials.push_back(std::move(node));
+            return ret;
+        }
+
+        template<class T>
+        static T* unconst(T const* p)
+        {
+            return const_cast<T*>(p);
+        }
+
+        template<type K>
+        struct tag {};
+
+        block const* data(tag<type::section>) const { return blocks.data(); }
+        block const* data(tag<type::inheritance>) const { return blocks.data(); }
+        partial const* data(tag<type::partial>) const { return partials.data(); }
+
+        template<type K>
+        auto get_if(content c) const
+        {
+            return c.kind == K ? data(tag<K>{}) + c.index : nullptr;
+        }
+
+        template<type K>
+        auto get_if(content c)
+        {
+            return unconst(const_cast<context const*>(this)->get_if<K>(c));
+        }
+
+        template<class F>
+        auto visit(F f, content c) const -> decltype(auto)
+        {
+            switch (c.kind)
+            {
+            case type::null: return f(c.kind, static_cast<void*>(nullptr));
+            case type::text: return f(c.kind, texts.data() + c.index);
+            case type::var_escaped:
+            case type::var_raw:
+                return f(c.kind, variables.data() + c.index);
+            case type::section:
+            case type::inversion:
+            case type::filter:
+            case type::loop:
+            case type::inheritance:
+                return f(c.kind, blocks.data() + c.index);
+            case type::partial: return f(c.kind, partials.data() + c.index);
+            }
+        }
+    };
+
+    struct document
+    {
+        context ctx;
+        content_list contents;
+    };
+
+    struct view
+    {
+        context const& ctx;
+        content_list const& contents;
     };
 }
 

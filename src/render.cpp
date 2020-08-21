@@ -102,6 +102,7 @@ namespace bustache::detail
     {
         using result_type = void;
 
+        ast::context const& ctx;
         content_scope const* scope;
         value_ptr cursor;
         std::vector<ast::override_map const*> chain;
@@ -116,11 +117,11 @@ namespace bustache::detail
 
         content_visitor
         (
-            content_scope const& scope, value_ptr cursor,
+            ast::context const& ctx, content_scope const& scope, value_ptr cursor,
             output_handler raw_os, output_handler escape_os, context_handler context,
             unresolved_handler f
         )
-            : scope(&scope), cursor(cursor)
+            : ctx(ctx), scope(&scope), cursor(cursor)
             , raw_os(raw_os), escape_os(escape_os), context(context)
             , variable_unresolved(f)
             , needs_indent()
@@ -167,12 +168,12 @@ namespace bustache::detail
 
         void print_value(output_handler os, value_ptr val);
 
-        void handle_variable(ast::variable const& variable, value_ptr val);
+        void handle_variable(ast::type tag, ast::variable const& variable, value_ptr val);
 
         void expand(ast::content_list const& contents)
         {
             for (auto const& content : contents)
-                visit(*this, content);
+                ctx.visit(*this, content);
         }
 
         void expand_on_object(ast::content_list const& contents, object_ptr data)
@@ -191,42 +192,44 @@ namespace bustache::detail
                 expand(contents);
         }
 
-        bool expand_section(char tag, ast::content_list const& contents, value_ptr val);
+        bool expand_section(ast::type tag, ast::content_list const& contents, value_ptr val);
 
-        void handle_section(ast::section const& section, value_ptr val);
+        void handle_section(ast::type tag, ast::block const& block, value_ptr val);
 
         void resolve_and_handle(std::string const& key, unresolved_handler unresolved, value_handler handle);
 
-        void operator()(ast::text const& text);
+        void operator()(ast::type, ast::text const* text);
 
-        void operator()(ast::variable const& variable)
+        void operator()(ast::type tag, ast::variable const* variable)
         {
-            resolve_and_handle(variable.key, variable_unresolved, [&](value_ptr val)
+            resolve_and_handle(variable->key, variable_unresolved, [&](value_ptr val)
             {
-                handle_variable(variable, val);
+                handle_variable(tag, *variable, val);
             });
         }
 
-        void operator()(ast::section const& section)
+        void operator()(ast::type tag, ast::block const* block)
         {
-            resolve_and_handle(section.key, nullptr, [&](value_ptr val)
+            if (tag == ast::type::inheritance)
             {
-                handle_section(section, val);
-            });
+                auto pc = find_override(block->key);
+                if (!pc)
+                    pc = &block->contents;
+                for (auto const& content : *pc)
+                    ctx.visit(*this, content);
+            }
+            else
+            {
+                resolve_and_handle(block->key, nullptr, [&](value_ptr val)
+                {
+                    handle_section(tag, *block, val);
+                });
+            }
         }
 
-        void operator()(ast::partial const& partial);
+        void operator()(ast::type, ast::partial const* partial);
 
-        void operator()(ast::inheritance const& inheritance)
-        {
-            auto pc = find_override(inheritance.key);
-            if (!pc)
-                pc = &inheritance.contents;
-            for (auto const& content : *pc)
-                visit(*this, content);
-        }
-
-        void operator()(ast::null) const {} // never called
+        void operator()(ast::type, void const*) const {} // never called
     };
 
     ast::content_list const* content_visitor::find_override(std::string const& key) const
@@ -253,8 +256,9 @@ namespace bustache::detail
         case model::lazy_format:
         {
             auto const fmt = static_cast<lazy_format_vtable const*>(val.vptr)->call(val.data, nullptr);
-            for (auto const& content : fmt.contents())
-                visit(*this, content);
+            auto const view = fmt.view();
+            for (auto const& content : view.contents)
+                view.ctx.visit(*this, content);
             break;
         }
         default:
@@ -262,17 +266,17 @@ namespace bustache::detail
         }
     }
 
-    void content_visitor::handle_variable(ast::variable const& variable, value_ptr val)
+    void content_visitor::handle_variable(ast::type tag, ast::variable const& variable, value_ptr val)
     {
         if (needs_indent)
         {
             raw_os(indent.data(), indent.size());
             needs_indent = false;
         }
-        print_value(variable.tag ? raw_os : escape_os, val);
+        print_value(tag == ast::type::var_raw ? raw_os : escape_os, val);
     }
 
-    bool content_visitor::expand_section(char tag, ast::content_list const& contents, value_ptr val)
+    bool content_visitor::expand_section(ast::type tag, ast::content_list const& contents, value_ptr val)
     {
         bool inverted = false;
         auto kind = val.vptr->kind;
@@ -280,18 +284,18 @@ namespace bustache::detail
         {
             switch (tag)
             {
-            case '^':
+            case ast::type::inversion:
                 inverted = true;
                 [[fallthrough]];
-            case '?':
+            case ast::type::filter:
                 kind = model::atom;
                 break;
-            case '*':
+            case ast::type::loop:
                 kind = model::list;
                 break;
             }
         }
-        else if (tag == '^') // Inverted lazy.
+        else if (tag == ast::type::inversion) // Inverted lazy.
             return false;
         switch (kind)
         {
@@ -320,7 +324,8 @@ namespace bustache::detail
         case model::lazy_value:
         {
             bool ret = false;
-            static_cast<lazy_value_vtable const*>(val.vptr)->call(val.data, &contents, [&](value_ptr val)
+            ast::view local{ctx, contents};
+            static_cast<lazy_value_vtable const*>(val.vptr)->call(val.data, &local, [&](value_ptr val)
             {
                 ret = expand_section(tag, contents, val);
             });
@@ -328,25 +333,27 @@ namespace bustache::detail
         }
         case model::lazy_format:
         {
-            if (tag == '?')
+            if (tag == ast::type::filter)
                 return true;
-            auto const fmt = static_cast<lazy_format_vtable const*>(val.vptr)->call(val.data, &contents);
-            for (auto const& content : fmt.contents())
-                visit(*this, content);
+            ast::view local{ctx, contents};
+            auto const fmt = static_cast<lazy_format_vtable const*>(val.vptr)->call(val.data, &local);
+            auto const view = fmt.view();
+            for (auto const& content : view.contents)
+                view.ctx.visit(*this, content);
             return false;
         }
         }
         std::abort(); // Unreachable.
     }
 
-    void content_visitor::handle_section(ast::section const& section, value_ptr val)
+    void content_visitor::handle_section(ast::type tag, ast::block const& block, value_ptr val)
     {
         auto const old_cursor = cursor;
         cursor = val;
-        if (expand_section(section.tag, section.contents, val))
+        if (expand_section(tag, block.contents, val))
         {
-            for (auto const& content : section.contents)
-                visit(*this, content);
+            for (auto const& content : block.contents)
+                ctx.visit(*this, content);
         }
         cursor = old_cursor;
     }
@@ -370,10 +377,10 @@ namespace bustache::detail
         });
     }
 
-    void content_visitor::operator()(ast::text const& text)
+    void content_visitor::operator()(ast::type, ast::text const* text)
     {
-        auto i = text.data();
-        auto const n = text.size();
+        auto i = text->data();
+        auto const n = text->size();
         assert(n && "empty text shouldn't be in ast");
         if (indent.empty())
         {
@@ -399,20 +406,21 @@ namespace bustache::detail
         raw_os(i0, i - i0);
     }
 
-    void content_visitor::operator()(ast::partial const& partial)
+    void content_visitor::operator()(ast::type, ast::partial const* partial)
     {
-        if (auto p = context(partial.key))
+        if (auto p = context(partial->key))
         {
-            if (p->contents().empty())
+            auto const view = p->view();
+            if (view.contents.empty())
                 return;
             auto old_size = indent.size();
             auto old_chain = chain.size();
-            indent += partial.indent;
-            needs_indent |= !partial.indent.empty();
-            if (!partial.overriders.empty())
-                chain.push_back(&partial.overriders);
-            for (auto const& content : p->contents())
-                visit(*this, content);
+            indent += partial->indent;
+            needs_indent |= !partial->indent.empty();
+            if (!partial->overriders.empty())
+                chain.push_back(&partial->overriders);
+            for (auto const& content : view.contents)
+                view.ctx.visit(*this, content);
             chain.resize(old_chain);
             indent.resize(old_size);
         }
@@ -421,8 +429,9 @@ namespace bustache::detail
     void render(output_handler raw_os, output_handler escape_os, format const& fmt, value_ptr data, context_handler context, unresolved_handler f)
     {
         content_scope scope{nullptr, object_ptr::from(data)};
-        content_visitor visitor{scope, data, raw_os, escape_os, context, f};
-        for (auto const& content : fmt.contents())
-            visit(visitor, content);
+        auto const view = fmt.view();
+        content_visitor visitor{view.ctx, scope, data, raw_os, escape_os, context, f};
+        for (auto const& content : view.contents)
+            view.ctx.visit(visitor, content);
     }
 }

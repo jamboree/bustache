@@ -95,19 +95,6 @@ namespace bustache::parser { namespace
         throw format_error(error_badkey, i - b);
     }
 
-    bool parse_content
-    (
-        I b, I& i0, I& i, I e, delim& d, bool& pure,
-        std::string_view& text, ast::content& attr,
-        std::string_view section
-    );
-
-    void parse_contents
-    (
-        I b, I i0, I& i, I e, delim& d, bool& pure,
-        ast::content_list& attr, std::string_view section
-    );
-
     I process_pure(I& i, I e, bool& pure) noexcept
     {
         I i0 = i;
@@ -132,16 +119,56 @@ namespace bustache::parser { namespace
         return i0;
     }
 
-    inline bool expect_block(I b, I& i, I e, delim& d, bool& pure, ast::block& attr)
+    struct tag_result
     {
-        expect_key(b, i, e, d, attr.key, true);
-        I i0 = process_pure(i, e, pure);
-        bool standalone = pure;
-        parse_contents(b, i0, i, e, d, pure, attr.contents, attr.key);
-        return standalone;
-    }
+        bool is_end_section;
+        bool check_standalone;
+        bool is_standalone;
+    };
 
-    bool expect_inheritance(I b, I& i, I e, delim& d, bool& pure, ast::partial& attr)
+    struct parser
+    {
+        ast::context& ctx;
+
+        void parse_start(I& i, I e, ast::content_list& attr)
+        {
+            delim d{"{{", "}}"};
+            bool pure = true;
+            parse_contents(i, i, i, e, d, pure, attr, {});
+        }
+
+        bool parse_content
+        (
+            I b, I& i0, I& i, I e, delim& d, bool& pure,
+            std::string_view& text, ast::content& attr,
+            std::string_view section
+        );
+
+        void parse_contents
+        (
+            I b, I i0, I& i, I e, delim& d, bool& pure,
+            ast::content_list& attr, std::string_view section
+        );
+
+        bool expect_block(I b, I& i, I e, delim& d, bool& pure, ast::block& attr)
+        {
+            expect_key(b, i, e, d, attr.key, true);
+            I i0 = process_pure(i, e, pure);
+            bool standalone = pure;
+            parse_contents(b, i0, i, e, d, pure, attr.contents, attr.key);
+            return standalone;
+        }
+
+        bool expect_inheritance(I b, I& i, I e, delim& d, bool& pure, ast::partial& attr);
+
+        tag_result expect_tag
+        (
+            I b, I& i, I e, delim& d, bool& pure,
+            ast::content& attr, std::string_view section
+        );
+    };
+
+    bool parser::expect_inheritance(I b, I& i, I e, delim& d, bool& pure, ast::partial& attr)
     {
         expect_key(b, i, e, d, attr.key, true);
         I i0 = process_pure(i, e, pure);
@@ -150,7 +177,7 @@ namespace bustache::parser { namespace
         {
             ast::content a;
             auto end = parse_content(b, i0, i, e, d, pure, text, a, attr.key);
-            if (auto p = get_if<ast::inheritance>(&a))
+            if (auto p = ctx.get_if<ast::type::inheritance>(a))
                 attr.overriders.emplace(std::move(p->key), std::move(p->contents));
             if (end)
                 break;
@@ -209,14 +236,7 @@ namespace bustache::parser { namespace
         d.close = std::string_view(i0, i1 - i0);
     }
 
-    struct tag_result
-    {
-        bool is_end_section;
-        bool check_standalone;
-        bool is_standalone;
-    };
-
-    tag_result expect_tag
+    tag_result parser::expect_tag
     (
         I b, I& i, I e, delim& d, bool& pure,
         ast::content& attr, std::string_view section
@@ -225,18 +245,30 @@ namespace bustache::parser { namespace
         if (skip(i, e))
             throw format_error(error_badkey, i - b);
         tag_result ret{};
+        ast::type kind;
         switch (*i)
         {
         case '#':
+            kind = ast::type::section;
+            {
+            block:
+                ast::block a;
+                ret.is_standalone = expect_block(b, ++i, e, d, pure, a);
+                attr = ctx.add(kind, std::move(a));
+            }
+            break;
         case '^':
+            kind = ast::type::inversion;
+            goto block;
         case '?':
+            kind = ast::type::filter;
+            goto block;
         case '*':
-        {
-            ast::section a(*i);
-            ret.is_standalone = expect_block(b, ++i, e, d, pure, a);
-            attr = std::move(a);
-            return ret;
-        }
+            kind = ast::type::loop;
+            goto block;
+        case '$':
+            kind = ast::type::inheritance;
+            goto block;
         case '/':
             skip(++i, e);
             if (!parse_lit(i, e, section))
@@ -263,7 +295,7 @@ namespace bustache::parser { namespace
         {
             ast::partial a;
             expect_key(b, ++i, e, d, a.key, true);
-            attr = std::move(a);
+            attr = ctx.add(std::move(a));
             ret.check_standalone = pure;
             break;
         }
@@ -271,9 +303,8 @@ namespace bustache::parser { namespace
         case '{':
         {
             ast::variable a;
-            a.tag = *i;
-            expect_key(b, ++i, e, d, a.key, a.tag != '{');
-            attr = std::move(a);
+            expect_key(b, ++i, e, d, a.key, *i != '{');
+            attr = ctx.add(ast::type::var_raw, std::move(a));
             pure = false;
             break;
         }
@@ -282,20 +313,13 @@ namespace bustache::parser { namespace
         {
             ast::partial a;
             ret.is_standalone = expect_inheritance(b, ++i, e, d, pure, a);
-            attr = std::move(a);
-            return ret;
-        }
-        case '$':
-        {
-            ast::inheritance a;
-            ret.is_standalone = expect_block(b, ++i, e, d, pure, a);
-            attr = std::move(a);
+            attr = ctx.add(std::move(a));
             return ret;
         }
         default:
             ast::variable a;
             expect_key(b, i, e, d, a.key, true);
-            attr = std::move(a);
+            attr = ctx.add(ast::type::var_escaped, std::move(a));
             pure = false;
             break;
         }
@@ -303,7 +327,7 @@ namespace bustache::parser { namespace
     }
 
     // Return true if it ends.
-    bool parse_content
+    bool parser::parse_content
     (
         I b, I& i0, I& i, I e, delim& d, bool& pure,
         std::string_view& text, ast::content& attr,
@@ -353,7 +377,7 @@ namespace bustache::parser { namespace
                     }
                     if (!tag.is_standalone)
                         text = std::string_view(i0, i2 - i0);
-                    else if (auto partial = get_if<ast::partial>(&attr))
+                    else if (auto partial = ctx.get_if<ast::type::partial>(attr))
                         partial->indent.assign(i1, i2 - i1);
                     i0 = i;
                     return i == e || tag.is_end_section;
@@ -369,7 +393,7 @@ namespace bustache::parser { namespace
         return true;
     }
 
-    void parse_contents
+    void parser::parse_contents
     (
         I b, I i0, I& i, I e, delim& d, bool& pure,
         ast::content_list& attr, std::string_view section
@@ -381,19 +405,12 @@ namespace bustache::parser { namespace
             ast::content a;
             auto end = parse_content(b, i0, i, e, d, pure, text, a, section);
             if (!text.empty())
-                attr.push_back(text);
+                attr.push_back(ctx.add(text));
             if (!a.is_null())
                 attr.push_back(std::move(a));
             if (end)
                 return;
         }
-    }
-
-    inline void parse_start(I& i, I e, ast::content_list& attr)
-    {
-        delim d{"{{", "}}"};
-        bool pure = true;
-        parse_contents(i, i, i, e, d, pure, attr, {});
     }
 }}
 
@@ -425,73 +442,30 @@ namespace bustache
 
     void format::init(char const* begin, char const* end)
     {
-        parser::parse_start(begin, end, _contents);
+        parser::parser{_doc.ctx}.parse_start(begin, end, _doc.contents);
     }
-
-    struct fallback
-    {
-        template<class T>
-        constexpr fallback(T const&) {}
-    };
-
-    struct accum_size
-    {
-        std::size_t operator()(ast::text const& text) const noexcept
-        {
-            return text.size();
-        }
-
-        std::size_t operator()(ast::block const& block) const noexcept
-        {
-            std::size_t n = 0;
-            for (auto const& content : block.contents)
-                n += visit(*this, content);
-            return n;
-        }
-
-        std::size_t operator()(fallback) const noexcept
-        {
-            return 0;
-        }
-    };
 
     std::size_t format::text_size() const noexcept
     {
-        accum_size accum;
         std::size_t n = 0;
-        for (auto const& content : _contents)
-            n += visit(accum, content);
+        for (auto const& text : _doc.ctx.texts)
+            n += text.size();
         return n;
     }
 
-    struct copy_text_visitor
-    {
-        char* data;
-
-        void operator()(ast::text& text) noexcept
-        {
-            auto n = text.size();
-            std::memcpy(data, text.data(), n);
-            text = {data, n};
-            data += n;
-        }
-
-        void operator()(ast::block& block) noexcept
-        {
-            for (auto& content : block.contents)
-                visit(*this, content);
-        }
-
-        void operator()(fallback) const noexcept {}
-    };
-
     void format::copy_text(std::size_t n)
     {
-        if (!n)
-            return;
-        _text.reset(new char[n]);
-        copy_text_visitor visitor{_text.get()};
-        for (auto& content : _contents)
-            visit(visitor, content);
+        if (n)
+        {
+            auto data = new char[n];
+            _text.reset(data);
+            for (auto& text : _doc.ctx.texts)
+            {
+                auto n = text.size();
+                std::memcpy(data, text.data(), n);
+                text = {data, n};
+                data += n;
+            }
+        }
     }
 }

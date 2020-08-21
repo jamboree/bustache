@@ -1,3 +1,8 @@
+#ifndef TEST_MODEL_INCLUDED
+#define TEST_MODEL_INCLUDED
+
+#include <variant>
+
 namespace test
 {
     struct context : std::unordered_map<std::string, bustache::format>
@@ -22,8 +27,8 @@ namespace test
     };
 
     using array = std::vector<value>;
-    using lazy_value = std::function<value(bustache::ast::content_list const*)>;
-    using lazy_format = std::function<bustache::format(bustache::ast::content_list const*)>;
+    using lazy_value = std::function<value(bustache::ast::view const*)>;
+    using lazy_format = std::function<bustache::format(bustache::ast::view const*)>;
 
     struct value : std::variant<bool, int, double, std::string, object, array, lazy_value, lazy_format>
     {
@@ -49,3 +54,5 @@ struct bustache::impl_compatible<test::value>
         return std::visit([](auto const& val) { return value_ptr(&val); }, self);
     }
 };
+
+#endif

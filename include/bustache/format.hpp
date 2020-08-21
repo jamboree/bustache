@@ -92,18 +92,16 @@ namespace bustache
                 copy_text(text_size());
         }
 
-        format(ast::content_list contents, bool copytext)
-          : _contents(std::move(contents))
+        format(ast::document doc, bool copytext)
+          : _doc(std::move(doc))
         {
             if (copytext)
                 copy_text(text_size());
         }
 
-        format(format&& other) noexcept
-          : _contents(std::move(other._contents)), _text(std::move(other._text))
-        {}
+        format(format&& other) = default;
 
-        format(format const& other) : _contents(other._contents)
+        format(format const& other) : _doc(other._doc)
         {
             if (other._text)
                 copy_text(text_size());
@@ -122,9 +120,9 @@ namespace bustache
             return {*this, data};
         }
 
-        ast::content_list const& contents() const
+        ast::view view() const noexcept
         {
-            return _contents;
+            return {_doc.ctx, _doc.contents};
         }
         
     private:
@@ -132,7 +130,7 @@ namespace bustache
         std::size_t text_size() const noexcept;
         void copy_text(std::size_t n);
 
-        ast::content_list _contents;
+        ast::document _doc;
         std::unique_ptr<char[]> _text;
     };
 

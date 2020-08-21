@@ -685,15 +685,16 @@ TEST_CASE("lambdas")
 
     // Section - Expansion
     CHECK(to_string("<{{#lambda}}-{{/lambda}}>"_fmt(object{
-        {"lambda", [](ast::content_list const* contents) {
-            ast::content_list list;
-            if (contents)
+        {"lambda", [](ast::view const* view) {
+            ast::document doc;
+            if (view)
             {
-                list.insert(list.end(), contents->begin(), contents->end());
-                list.push_back(ast::variable{"planet"});
-                list.insert(list.end(), contents->begin(), contents->end());
+                doc.ctx = view->ctx;
+                doc.contents.insert(doc.contents.end(), view->contents.begin(), view->contents.end());
+                doc.contents.push_back(doc.ctx.add(ast::type::var_escaped, ast::variable{"planet"}));
+                doc.contents.insert(doc.contents.end(), view->contents.begin(), view->contents.end());
             }
-            return format(std::move(list), false);
+            return format(std::move(doc), false);
         }},
         {"planet", "Earth"}}))
         ==
@@ -701,15 +702,17 @@ TEST_CASE("lambdas")
 
     // Section - Multiple Calls
     CHECK(to_string("{{#lambda}}FILE{{/lambda}} != {{#lambda}}LINE{{/lambda}}"_fmt(object{
-        {"lambda", [](ast::content_list const* contents) {
-            ast::content_list list;
-            if (contents)
+        {"lambda", [](ast::view const* view) {
+            ast::document doc;
+            if (view)
             {
-                list.push_back(ast::text("__"));
-                list.insert(list.end(), contents->begin(), contents->end());
-                list.push_back(ast::text("__"));
+                doc.ctx = view->ctx;
+                auto const txt = doc.ctx.add(ast::text("__"));
+                doc.contents.push_back(txt);
+                doc.contents.insert(doc.contents.end(), view->contents.begin(), view->contents.end());
+                doc.contents.push_back(txt);
             }
-            return format(std::move(list), false);
+            return format(std::move(doc), false);
         }}}))
         ==
         "__FILE__ != __LINE__");

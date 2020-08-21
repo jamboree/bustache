@@ -13,6 +13,12 @@
 #include <functional>
 #include <charconv>
 
+namespace std
+{
+    template<class... T>
+    class variant;
+};
+
 namespace bustache::detail
 {
     struct vtable_base;
@@ -70,6 +76,33 @@ namespace bustache::detail
 
     template<class T>
     using range_value_t = typename range_value<T>::type;
+
+    namespace barrier
+    {
+        using std::begin;
+        using std::end;
+
+        struct begin_fn
+        {
+            template<class T>
+            auto operator()(T const& seq) const -> decltype(begin(seq))
+            {
+                return begin(seq);
+            }
+        };
+
+        struct end_fn
+        {
+            template<class T>
+            auto operator()(T const& seq) const -> decltype(end(seq))
+            {
+                return end(seq);
+            }
+        };
+    }
+
+    constexpr barrier::begin_fn begin{};
+    constexpr barrier::end_fn end{};
 
     template<class>
     struct fn_base;
@@ -149,9 +182,9 @@ namespace bustache
     };
 
     template<class F>
-    concept Lazy_format = requires(F const& f, ast::content_list const* contents)
+    concept Lazy_format = requires(F const& f, ast::view const* view)
     {
-        {f(contents)} -> std::convertible_to<format>;
+        {f(view)} -> std::convertible_to<format>;
     };
 
     template<class T>
@@ -161,9 +194,9 @@ namespace bustache
     };
 
     template<class F>
-    concept Lazy_value = requires(F const& f, ast::content_list const* contents)
+    concept Lazy_value = requires(F const& f, ast::view const* view)
     {
-        {f(contents)} -> Value;
+        {f(view)} -> Value;
     };
 
     template<class T>
@@ -175,8 +208,8 @@ namespace bustache
     template<class T>
     concept ValueRange = requires(T const& t)
     {
-        std::begin(t);
-        std::end(t);
+        detail::begin(t);
+        detail::end(t);
     } && Value<detail::range_value_t<T>>;
 
     template<class T>
@@ -290,12 +323,12 @@ namespace bustache::detail
         template<class F>
         constexpr lazy_format_vtable(type<F> t) : vtable_base{model::lazy_format}, call(call_impl<F>) {}
 
-        format(*call)(std::uintptr_t, ast::content_list const*);
+        format(*call)(std::uintptr_t, ast::view const*);
 
         template<class F>
-        static format call_impl(std::uintptr_t self, ast::content_list const* contents)
+        static format call_impl(std::uintptr_t self, ast::view const* view)
         {
-            return deref_data<F>(self)(contents);
+            return deref_data<F>(self)(view);
         }
     };
 
@@ -307,12 +340,12 @@ namespace bustache::detail
         template<class F>
         constexpr lazy_value_vtable(type<F> t) : vtable_base{model::lazy_value}, call(call_impl<F>) {}
 
-        void(*call)(std::uintptr_t, ast::content_list const*, value_handler visit);
+        void(*call)(std::uintptr_t, ast::view const*, value_handler visit);
 
         template<class F>
-        static void call_impl(std::uintptr_t self, ast::content_list const* contents, value_handler visit)
+        static void call_impl(std::uintptr_t self, ast::view const* view, value_handler visit)
         {
-            auto const& val = deref_data<F>(self)(contents);
+            auto const& val = deref_data<F>(self)(view);
             visit(&val);
         }
     };
@@ -621,7 +654,7 @@ namespace bustache
     {
         static value_ptr get_value_ptr(std::variant<T...> const& self)
         {
-            return std::visit([](auto const& val) { return value_ptr(&val); }, self);
+            return visit([](auto const& val) { return value_ptr(&val); }, self);
         }
     };
 }
