@@ -1,9 +1,8 @@
 #include <benchmark/benchmark.h>
 #include <bustache/render/string.hpp>
 #include "model.hpp"
-//#include <mstch/mstch.hpp>
-//#include <mustache.hpp>
-#include "mustache.hpp"
+#include <mstch/mstch.hpp>
+#include <mustache.hpp>
 
 static char tmp[] =
 R"(<h1>{{header}}</h1>
@@ -117,7 +116,7 @@ static void bustache_usage(benchmark::State& state)
         to_string(fmt(data).context(context).escape(escape_html));
     }
 }
-#if 0
+
 static void mstch_usage(benchmark::State& state)
 {
     using namespace mstch;
@@ -187,7 +186,7 @@ static void mstch_usage(benchmark::State& state)
         render(tmp, data, context);
     }
 }
-#endif
+
 static void kainjow_usage(benchmark::State& state)
 {
     using namespace kainjow::mustache;
@@ -258,7 +257,7 @@ static void kainjow_usage(benchmark::State& state)
 }
 
 BENCHMARK(bustache_usage);
-//BENCHMARK(mstch_usage);
+BENCHMARK(mstch_usage);
 BENCHMARK(kainjow_usage);
 
 BENCHMARK_MAIN();

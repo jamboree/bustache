@@ -1,10 +1,8 @@
-{{ bustache }} [![Try it online][badge.wandbox]](https://wandbox.org/permlink/HC4GG9QxCw6dsygF)
+{{ bustache }} <!-- [![Try it online][badge.wandbox]](https://wandbox.org/permlink/HC4GG9QxCw6dsygF) -->
 ========
 
-C++17 implementation of [{{ mustache }}](http://mustache.github.io/), compliant with [spec](https://github.com/mustache/spec) v1.1.3.
-
-## Dependencies
-* [Boost](http://www.boost.org/) - for `unordered_map`, etc
+C++20 implementation of [{{ mustache }}](http://mustache.github.io/), compliant with [spec](https://github.com/mustache/spec) v1.1.3.
+No external dependencies required.
 
 ### Optional Dependencies
 * [Google.Benchmark](https://github.com/google/benchmark) - for benchmark
@@ -20,62 +18,90 @@ C++17 implementation of [{{ mustache }}](http://mustache.github.io/), compliant 
 * Lambdas
 * HTML escaping *(configurable)*
 * Template inheritance *(extension)*
-* Customizable behavior on unresolved key
-* User-defined object and list
+
+## Other Features
+* Customizable behavior on unresolved variable
+* Trait-based user-defined model
 
 ## Basics
 {{ mustache }} is a template language for text-replacing.
 When it comes to formatting, there are 2 essential things -- _Format_ and _Data_.
 {{ mustache }} also allows an extra lookup-context for _Partials_.
-In {{ bustache }}, we represent the _Format_ as a `bustache::format` object, and `bustache::object` for _Data_, and anything that provides interface that is compatible with `Map<std::string, bustache::format>` can be used for _Partials_.
-The _Format_ is orthogonal to the _Data_, so technically you can use your custom _Data_ type with `bustache::format`, but then you have to write the formatting logic yourself.
+In {{ bustache }}, we represent the _Format_ as a `bustache::format` object, and _Data_ and _Partials_ can be anything that implements the required traits.
 
 ### Quick Example
 ```c++
 bustache::format format{"{{mustache}} templating"};
-bustache::object data{{"mustache", "bustache"}};
+std::unordered_map<std::string, std::string> data{{"mustache", "bustache"}};
 std::cout << format(data); // should print "bustache templating"
 ```
 
 ## Manual
 
 ### Data Model
-It's basically the JSON Data Model represented in C++, with some extensions.
+{{ bustache }} doesn't required a fixed set of predefined data types to be used as data model. Instead, any type can be used as data model.
+Most STL-compatible containers will work out-of-the-box, including the ones that you defined yourself!
 
 #### Header
 `#include <bustache/model.hpp>`
 
-#### Synopsis
+#### Model Traits
+To meet the `Model` concept, you have to implement the traits:
 ```c++
-using array = std::vector<value>;
-using object = boost::unordered_map<std::string, value>;
-using lambda0v = std::function<value()>;
-using lambda0f = std::function<format()>;
-using lambda1v = std::function<value(ast::content_list const&)>;
-using lambda1f = std::function<format(ast::content_list const&)>;
-
-// Non-owning UDT views.
-class object_view;
-class list_view;
-
-class value =
-    variant
-    <
-        std::nullptr_t
-      , bool
-      , int
-      , double
-      , std::string
-      , array
-      , lambda0v
-      , lambda0f
-      , lambda1v
-      , lambda1f
-      , object
-      , object_view
-      , list_view
-    >;
+template<>
+struct bustache::impl_model<T>
+{
+    static constexpr model kind;
+};
 ```
+where model can be one of the following:
+* `model::atom`
+* `model::object`
+* `model::list`
+
+```c++
+// Required by model::atom.
+template<>
+struct bustache::impl_test<T>
+{
+    static bool test(T const& self);
+};
+
+// Required by model::atom.
+template<>
+struct bustache::impl_print<T>
+{
+    static void print(T const& self, output_handler os, char const* fmt);
+};
+
+// Required by model::object.
+template<>
+struct bustache::impl_object<T>
+{
+    static void get(T const& self, std::string const& key, value_handler visit);
+};
+
+// Required by model::list.
+template<>
+struct bustache::impl_list<T>
+{
+    static bool empty(T const& self);
+    static void iterate(T const& self, value_handler visit);
+};
+```
+See [udt.cpp](test/udt.cpp) for more examples.
+
+#### Compatible Trait
+Some types cannot be categorized into a single model (e.g. `varaint`), to make it compatible, you can implement the trait:
+```c++
+template<>
+struct bustache::impl_compatible<T>
+{
+    static value_ptr get_value_ptr(T const& self);
+};
+```
+See [model.hpp](test/model.hpp) for example.
+
 ### Format Object
 `bustache::format` parses in-memory string into AST.
 
@@ -85,79 +111,121 @@ class value =
 #### Synopsis
 *Constructors*
 ```c++
-format(char const* begin, char const* end); // [1]
-
-template<std::size_t N>
-explicit format(char const (&source)[N]); // [2]
-
-template<class Source>
-explicit format(Source const& source); // [3]
-
-explicit format(ast::content_list contents, bool copytext = true); // [4]
+explicit format(std::string_view source); // [1]
+format(std::string_view source, bool copytext); // [2]
+format(ast::content_list contents, bool copytext); // [3]
 ```
-* `Source` is an object that represents continous memory, like `std::string`, `std::vector<char>` or `boost::iostreams::mapped_file_source` that provides access to raw memory through `source.data()` and `source.size()`.
-* Version 2 allows implicit conversion from literal.
-* Version 1~3 doesn't hold the text, you must ensure the memory referenced is valid and not modified at the use of the format object.
-* Version 4 takes a `ast::content_list`, if `copytext == true` the text will be copied into the internal buffer.
+* Version 1 doesn't hold the text, you must ensure the source is valid and not modified during its use.
+* Version 2~3, if `copytext == true` the text will be copied into the internal buffer.
 
 *Manipulator*
-```c++
-template <typename T>
-manipulator<T, no_context>
-operator()(T const& data, option_type flag = normal) const;
 
-template <typename T, typename Context>
-manipulator<T, Context>
-operator()(T const& data, Context const& context, option_type flag = normal) const;
-```
-* `Context` is the lookup-context used by _Partials_.
-You can implement `bustache::context_trait<T>` for your custom context:
+A manipulator combines the format & data and allows you to specify some options.
 ```c++
-template<>
-struct context_trait<T>
-{
-    static format const* get(T const& self, std::string const& key);
-};
+template<class T>
+manipulator</*unspecified*/> format::operator()(T const& data) const;
+
+// Specify the context for partials.
+template<class T>
+manipulator</*unspecified*/> manipulator::context(T const&) const noexcept;
+
+// Specify the escape action.
+template<class T>
+manipulator</*unspecified*/> manipulator::escape(T const&) const noexcept;
 ```
-`context_trait` has default implementation for `Map<std::string, bustache::format>`, where `Map` has interface like `map` or `unordered_map`.
-* `option_type` provides 2 options: `normal` and `escape_html`, if `normal` is chosen, there's no difference between `{{Tag}}` and `{{{Tag}}}`, the text won't be escaped in both cases.
+
+### Render API
+`render` can be used for customized output.
+
+#### Header
+`#include <bustache/render.hpp>`
+
+```c++
+template<class Sink, Value T, class Escape = no_escape_t>
+inline void render
+(
+    Sink const& os, format const& fmt, T const& data,
+    context_handler context = no_context_t{}, Escape escape = {},
+    unresolved_handler f = nullptr
+);
+```
+
+#### Context Handler
+The context for partials can be any callable that meets the signature:
+```c++
+(std::string const& key) -> format const*;
+```
+
+#### Unresolved Handler
+The unresolved handler can be any callable that meets the signature:
+```c++
+(std::string const& key) -> value_ptr;
+```
+
+#### Sink (Output Handler)
+The sink can be any callable that meets the signature:
+```c++
+(char const* data, std::size_t count) -> void;
+```
+
+#### Escape Action
+The escape action can be any callable that meets the signature:
+```c++
+template<class OldSink>
+(OldSink const& sink) -> NewSink;
+```
+There're 2 predefined actions: `no_escape` (default) and `escape_html`, if `no_escape` is chosen, there's no difference between `{{Tag}}` and `{{{Tag}}}`, the text won't be escaped in both cases.
 
 ### Stream-based Output
 Output directly to the `std::basic_ostream`.
 
+#### Header
+`#include <bustache/render/ostream.hpp>`
+
 #### Synopsis
 ```c++
-// in <bustache/model.hpp>
-template<class CharT, class Traits, class T, class Context,
-    std::enable_if_t<std::is_constructible<value_view, T>::value, bool> = true>
-inline std::basic_ostream<CharT, Traits>&
-operator<<(std::basic_ostream<CharT, Traits>& out, manipulator<T, Context> const& manip)
+template<class CharT, class Traits, Value T, class Escape = no_escape_t>
+void render_ostream
+(
+    std::basic_ostream<CharT, Traits>& out, format const& fmt,
+    T const& data, context_handler context = no_context_t{},
+    Escape escape = {}, unresolved_handler f = nullptr
+);
+
+template<class CharT, class Traits, class... Opts>
+std::basic_ostream<CharT, Traits>& operator<<(std::basic_ostream<CharT, Traits>& out, manipulator<Opts...> const& manip)
 ```
 
 #### Example
 ```c++
-// open the template file
-boost::iostreams::mapped_file_source file(...);
-// create format from source
-bustache::format format(file);
-// create the data we want to output
-bustache::object data{...};
-// create the context for Partials
-std::unordered_map<std::string, bustache::format> context{...};
-// output the result
-std::cout << format(data, context, bustache::escape_html);
+// Create format from source.
+bustache::format format(...);
+// Create the data we want to output.
+my_data data{...};
+// Create the context for Partials.
+my_context context{...};
+// Output the result.
+std::cout << format(data).context(context).escape(bustache::escape_html);
 ```
-Note that you can output anything that constitutes `bustache::value`, not just `bustache::object`.
 
 ### String Output
-Generate a `std::string` from a `manipulator`.
+Generate a `std::string`.
+
+#### Header
+`#include <bustache/render/string.hpp>`
 
 #### Synopsis
 ```c++
-// in <bustache/model.hpp>
-template<class T, class Context,
-    std::enable_if_t<std::is_constructible<value_view, T>::value, bool> = true>
-inline std::string to_string(manipulator<T, Context> const& manip)
+template<class String, Value T, class Escape = no_escape_t>
+void render_string
+(
+    String& out, format const& fmt,
+    T const& data, context_handler context = no_context_t{},
+    Escape escape = {}, unresolved_handler f = nullptr
+);
+
+template<class... Opts>
+std::string to_string(manipulator<Opts...> const& manip);
 ```
 #### Example
 ```c++
@@ -165,144 +233,13 @@ bustache::format format(...);
 std::string txt = to_string(format(data, context, bustache::escape_html));
 ```
 
-### Generate API
-`generate` can be used for customized output.
-
-#### Header
-`#include <bustache/generate.hpp>`
-
-```c++
-template<class Sink, class UnresolvedHandler = default_unresolved_handler>
-inline void generate
-(
-    Sink& sink, format const& fmt, value_view const& data,
-    option_type flag = normal, UnresolvedHandler&& f = {}
-)
-{
-    generate(sink, fmt, data, no_context::dummy(), flag, std::forward<UnresolvedHandler>(f));
-}
-
-template<class Sink, class Context, class UnresolvedHandler = default_unresolved_handler>
-void generate
-(
-    Sink& sink, format const& fmt, value_view const& data,
-    Context const& context, option_type flag = normal, UnresolvedHandler&& f = {}
-)
-```
-`Sink` is a polymorphic functor that handles:
-```c++
-void operator()(char const* it, char const* end);
-void operator()(bool data);
-void operator()(int data);
-void operator()(double data);
-```
-You don't have to deal with HTML-escaping yourself, it's handled within `generate` depending on the option.
-
-`UnresolvedHandler` is a callable object that has the signature:
-```c++
-value(std::string const& key);
-```
-The `key` parameter is the unresolved key. The default handler just returns a null value.
-
-### Predefined Generators
-These are predefined output built on `generate`.
-
-#### Header
-* `#include <bustache/generate/ostream.hpp>`
-* `#include <bustache/generate/string.hpp>`
-
-```c++
-template<class CharT, class Traits, class Context, class UnresolvedHandler = default_unresolved_handler>
-void generate_ostream
-(
-    std::basic_ostream<CharT, Traits>& out, format const& fmt,
-    value_view const& data, Context const& context,
-    option_type flag, UnresolvedHandler&& f = {}
-);
-
-template<class String, class Context, class UnresolvedHandler = default_unresolved_handler>
-void generate_string
-(
-    String& out, format const& fmt,
-    value_view const& data, Context const& context,
-    option_type flag, UnresolvedHandler&& f = {}
-);
-```
-
-#### Note
-The stream-based output and string output are built on these functions,
-but `<bustache/model.hpp>` doesn't include these headers and only supports `char` output,
-if you need other char-type support for stream/string output, you have to include these headers as well.
-
-
 ## Advanced Topics
 ### Lambdas
-The lambdas in {{ bustache }} have 4 variants - they're production of 2 param-set x 2 return-type.
-One param-set accepts no params, the other accepts a `bustache::ast::content_list const&`.
-One return-type is `bustache::value`, the other is `bustache::format`.
+The lambdas in {{ bustache }} accept signatures below:
+* `(ast::content_list const* contents) -> bustache::format`
+* `(ast::content_list const* contents) -> Value`
 
-Note that unlike other implementations, we pass a `bustache::ast::content_list` instead of a raw string.
-A `content_list` is a parsed list of AST nodes, you can make a new `content_list` out of the old one and give it to a `bustache::format`.
-
-### UDT
-Sometimes it's infeasible or inefficent to transform the whole user data to the JSON-like data model.
-Fortunately, {{ bustache }} allows users to use custom types in the data model, by implementing the required traits and using the corresponding views for the UDTs.
-#### Custom Object
-Implement `bustache::object_trait` for your object type `T`:
-```c++
-template<>
-struct object_trait<T>
-{
-    static value_ptr get(T const& self, std::string const& key, value_holder& hold);
-};
-```
-Use `bustache::object_view` to make a view to the object:
-```c++
-T data;
-object_view(data);
-```
-#### Custom List
-Implement `bustache::list_trait` for your list type `T`:
-```c++
-template<>
-struct list_trait<T>
-{
-    static bool empty(T const& self);
-    static std::uintptr_t begin_cursor(T const& self);
-    static value_ptr next(T const& self, std::uintptr_t& state, value_holder& hold);
-    static void end_cursor(T const& self, std::uintptr_t) noexcept {}
-};
-```
-Use `bustache::list_view` to make a view to the list:
-```c++
-T data;
-list_view(data);
-```
-#### Use of value_holder
-Note that both `object_trait<T>::get` and `list_trait<T>::next` take a `bustache::value_holder&` and return a `bustache::value_ptr`.
-The value that `value_ptr` refers to must outlive the pointer, and that's what `value_holder` offers - to hold the value.
-
-To return a local value:
-```c++
-return hold(10);
-```
-To return an `object_view` to some data member:
-```c++
-return hold(object_view(self.obj));
-```
-To return a local object:
-```c++
-return hold.object(obj); // obj is copied.
-```
-To return a local list:
-```c++
-return hold.list(lst); // lst is copied.
-```
-
-It's not always necessary to use `value_holder`. If you know the data outlives the returned `value_ptr`, you can do something like:
-```c++
-return value_view(self.data).get_pointer();
-```
+A `content_list` is a parsed list of AST nodes, you can make a new `content_list` out of the old one and give it to a `bustache::format`. Note that `contents` will be null if the lambda is used as variable.
 
 ### Error Handling
 The constructor of `bustache::format` may throw `bustache::format_error` if the parsing fails.
@@ -326,24 +263,25 @@ public:
 You can also use `what()` for a descriptive text.
 
 ## Performance
-Compare with 2 other libs - [mstch](https://github.com/no1msd/mstch) and [Kainjow.Mustache](https://github.com/kainjow/Mustache).
+Compare with 2 other libs - [mstch](https://github.com/no1msd/mstch/tree/0fde1cf94c26ede7fa267f4b64c0efe5da81a77a) and [Kainjow.Mustache](https://github.com/kainjow/Mustache/tree/a7eebc9bec92676c1931eddfff7637d7e819f2d2).
 See [benchmark.cpp](test/benchmark.cpp). 
 
-Sample run (VS2017 15.7.4, boost 1.67.0, 64-bit release build):
+Sample run (VS2017 16.7.2, boost 1.73.0, 64-bit release build):
 ```
-06/25/18 16:14:52
-Run on (8 X 3392 MHz CPU s)
+08/21/20 09:31:39
+Running F:\code\Notation\x64\Release\Notation.exe
+Run on (8 X 3600 MHz CPU s)
 CPU Caches:
-  L1 Data 32K (x4)
-  L1 Instruction 32K (x4)
-  L2 Unified 262K (x4)
-  L3 Unified 8388K (x1)
-------------------------------------------------------
-Benchmark               Time           CPU Iterations
-------------------------------------------------------
-bustache_usage       6605 ns       6627 ns      89600
-mstch_usage        106620 ns     106027 ns       5600
-kainjow_usage       22828 ns      22949 ns      32000
+  L1 Data 32K (x8)
+  L1 Instruction 32K (x8)
+  L2 Unified 262K (x8)
+  L3 Unified 12582K (x1)
+---------------------------------------------------------
+Benchmark               Time             CPU   Iterations
+---------------------------------------------------------
+bustache_usage       4366 ns         4395 ns       160000
+mstch_usage         70794 ns        71498 ns         8960
+kainjow_usage       25155 ns        25112 ns        28000
 ```
 Lower is better.
 

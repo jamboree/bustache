@@ -26,7 +26,7 @@ namespace bustache { namespace detail
 
 namespace bustache
 {
-    template<class CharT, class Traits, Value T, class Escape = detail::no_escape_t>
+    template<class CharT, class Traits, Value T, class Escape = no_escape_t>
     inline void render_ostream
     (
         std::basic_ostream<CharT, Traits>& out, format const& fmt,

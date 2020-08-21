@@ -154,9 +154,6 @@ namespace bustache
         {f(contents)} -> std::convertible_to<format>;
     };
 
-    //template<class T>
-    //concept Value = Model<T> || Compatible<T> || Lazy_value<T> || Lazy_format<T>;
-
     template<class T>
     concept Value = requires(T const& val)
     {

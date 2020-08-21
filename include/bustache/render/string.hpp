@@ -26,7 +26,7 @@ namespace bustache { namespace detail
 
 namespace bustache
 {
-    template<class String, Value T, class Escape = detail::no_escape_t>
+    template<class String, Value T, class Escape = no_escape_t>
     inline void render_string
     (
         String& out, format const& fmt,

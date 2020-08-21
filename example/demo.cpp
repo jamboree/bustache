@@ -1,5 +1,6 @@
 #include <iostream>
-#include <bustache/model.hpp>
+#include <bustache/render/ostream.hpp>
+#include "../test/model.hpp"
 
 static char tmp[] =
 R"(<h1>{{header}}</h1>
@@ -44,11 +45,10 @@ R"(<h1>{{header}}</h1>
 
 int main()
 {
-    using bustache::object;
-    using bustache::array;
+    using namespace test;
     using namespace bustache::literals;
 
-    boost::unordered_map<std::string, bustache::format> context
+    test::context context
     {
         {"href", "href=\"{{url}}\""_fmt}
     };
@@ -81,7 +81,7 @@ int main()
             }
         },
         {"empty", false},
-        {"count", [&n] { return ++n; }},
+        {"count", [&n](...) { return ++n; }},
         {"array", array{1, 2, 3}},
         {"a", object{{"b", object{{"c", true}}}}},
         {"comments",
@@ -110,7 +110,7 @@ int main()
     {
         bustache::format format(tmp);
         std::cout << "-----------------------\n";
-        std::cout << format(data, context, bustache::escape_html) << "\n";
+        std::cout << format(data).context(context).escape(bustache::escape_html) << "\n";
         std::cout << "-----------------------\n";
     }
     catch (const std::exception& e)

@@ -13,7 +13,7 @@ namespace bustache
 {
     using unresolved_handler = fn_ptr<value_ptr(std::string const&)>;
 
-    using context_handler = fn_ref<format const* (std::string const&)>;
+    using context_handler = fn_ref<format const*(std::string const&)>;
 
     struct no_context_t
     {
@@ -36,6 +36,14 @@ namespace bustache
         {
             auto it = map.find(key);
             return it == map.end() ? nullptr : &it->second;
+        }
+    };
+
+    struct no_escape_t
+    {
+        output_handler operator()(output_handler os) const
+        {
+            return os;
         }
     };
 }
@@ -96,14 +104,6 @@ namespace bustache::detail
         }
     };
 
-    struct no_escape_t
-    {
-        output_handler operator()(output_handler os) const
-        {
-            return os;
-        }
-    };
-
     inline no_context_t get_context(void const*)
     {
         return {};
@@ -135,14 +135,14 @@ namespace bustache::detail
 
 namespace bustache
 {
-    constexpr detail::no_escape_t no_escape{};
+    constexpr no_escape_t no_escape{};
 
     constexpr auto escape_html = []<class Sink>(Sink const& sink)
     {
         return detail::escape_sink<Sink>{sink};
     };
 
-    template<class Sink, Value T, class Escape = detail::no_escape_t>
+    template<class Sink, Value T, class Escape = no_escape_t>
     inline void render
     (
         Sink const& os, format const& fmt, T const& data,
