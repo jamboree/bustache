@@ -47,9 +47,9 @@ namespace bustache::parser { namespace
         return true;
     }
 
-    inline bool parse_end_brace(I& i, I e) noexcept
+    inline bool parse_sentinel(I& i, I e, char c) noexcept
     {
-        if (i != e && *i == '}')
+        if (i != e && *i == c)
         {
             skip(++i, e);
             return true;
@@ -72,14 +72,14 @@ namespace bustache::parser { namespace
         return true;
     }
 
-    void expect_key(I b, I& i, I e, delim& d, std::string& attr, bool not_brace)
+    void expect_key(I b, I& i, I e, delim& d, std::string& attr, char sentinel)
     {
         skip(i, e);
         for (I const i0 = i; i != e; ++i)
         {
             I const i1 = i;
             skip(i, e);
-            if (not_brace || parse_end_brace(i, e))
+            if (!sentinel || parse_sentinel(i, e, sentinel))
             {
                 if (parse_lit(i, e, d.close))
                 {
@@ -152,7 +152,7 @@ namespace bustache::parser { namespace
 
         bool expect_block(I b, I& i, I e, delim& d, bool& pure, ast::block& attr)
         {
-            expect_key(b, i, e, d, attr.key, true);
+            expect_key(b, i, e, d, attr.key, '\0');
             I i0 = process_pure(i, e, pure);
             bool standalone = pure;
             parse_contents(b, i0, i, e, d, pure, attr.contents, attr.key);
@@ -170,7 +170,7 @@ namespace bustache::parser { namespace
 
     bool parser::expect_inheritance(I b, I& i, I e, delim& d, bool& pure, ast::partial& attr)
     {
-        expect_key(b, i, e, d, attr.key, true);
+        expect_key(b, i, e, d, attr.key, '\0');
         I i0 = process_pure(i, e, pure);
         bool standalone = pure;
         for (std::string_view text;;)
@@ -294,7 +294,7 @@ namespace bustache::parser { namespace
         case '>':
         {
             ast::partial a;
-            expect_key(b, ++i, e, d, a.key, true);
+            expect_key(b, ++i, e, d, a.key, '\0');
             attr = ctx.add(std::move(a));
             ret.check_standalone = pure;
             break;
@@ -303,7 +303,8 @@ namespace bustache::parser { namespace
         case '{':
         {
             ast::variable a;
-            expect_key(b, ++i, e, d, a.key, *i != '{');
+            char const sentinel = *i == '{' ? '}' : '\0';
+            expect_key(b, ++i, e, d, a.key, sentinel);
             attr = ctx.add(ast::type::var_raw, std::move(a));
             pure = false;
             break;
@@ -318,7 +319,7 @@ namespace bustache::parser { namespace
         }
         default:
             ast::variable a;
-            expect_key(b, i, e, d, a.key, true);
+            expect_key(b, i, e, d, a.key, '\0');
             attr = ctx.add(ast::type::var_escaped, std::move(a));
             pure = false;
             break;
