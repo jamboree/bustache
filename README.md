@@ -236,10 +236,10 @@ std::string txt = to_string(format(data).context(context).escape(bustache::escap
 ## Advanced Topics
 ### Lambdas
 The lambdas in {{ bustache }} accept signatures below:
-* `(ast::content_list const* contents) -> bustache::format`
+* `(ast::content_list const* contents) -> format`
 * `(ast::content_list const* contents) -> Value`
 
-A `content_list` is a parsed list of AST nodes, you can make a new `content_list` out of the old one and give it to a `bustache::format`. Note that `contents` will be null if the lambda is used as variable.
+A `ast::content_list` is a parsed list of AST nodes, you can make a new `ast::content_list` out of the old one and give it to a `format`. Note that `contents` will be null if the lambda is used as variable.
 
 ### Error Handling
 The constructor of `bustache::format` may throw `bustache::format_error` if the parsing fails.
@@ -266,7 +266,7 @@ You can also use `what()` for a descriptive text.
 Compare with 2 other libs - [mstch](https://github.com/no1msd/mstch/tree/0fde1cf94c26ede7fa267f4b64c0efe5da81a77a) and [Kainjow.Mustache](https://github.com/kainjow/Mustache/tree/a7eebc9bec92676c1931eddfff7637d7e819f2d2).
 See [benchmark.cpp](test/benchmark.cpp). 
 
-Sample run (VS2017 16.7.2, boost 1.73.0, 64-bit release build):
+Sample run (VS2019 16.7.2, boost 1.73.0, 64-bit release build):
 ```
 08/21/20 09:31:39
 Running F:\code\Notation\x64\Release\Notation.exe
