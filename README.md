@@ -230,7 +230,7 @@ std::string to_string(manipulator<Opts...> const& manip);
 #### Example
 ```c++
 bustache::format format(...);
-std::string txt = to_string(format(data, context, bustache::escape_html));
+std::string txt = to_string(format(data).context(context).escape(bustache::escape_html));
 ```
 
 ## Advanced Topics
