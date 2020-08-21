@@ -113,7 +113,7 @@ See [model.hpp](test/model.hpp) for example.
 ```c++
 explicit format(std::string_view source); // [1]
 format(std::string_view source, bool copytext); // [2]
-format(ast::content_list contents, bool copytext); // [3]
+format(ast::document doc, bool copytext); // [3]
 ```
 * Version 1 doesn't hold the text, you must ensure the source is valid and not modified during its use.
 * Version 2~3, if `copytext == true` the text will be copied into the internal buffer.
@@ -236,10 +236,10 @@ std::string txt = to_string(format(data).context(context).escape(bustache::escap
 ## Advanced Topics
 ### Lambdas
 The lambdas in {{ bustache }} accept signatures below:
-* `(ast::content_list const* contents) -> format`
-* `(ast::content_list const* contents) -> Value`
+* `(ast::view const* view) -> format`
+* `(ast::view const* view) -> Value`
 
-A `ast::content_list` is a parsed list of AST nodes, you can make a new `ast::content_list` out of the old one and give it to a `format`. Note that `contents` will be null if the lambda is used as variable.
+A `ast::view` is a parsed list of AST nodes, you can make a new `ast::view` out of the old one and give it to a `format`. Note that `view` will be null if the lambda is used as variable.
 
 ### Error Handling
 The constructor of `bustache::format` may throw `bustache::format_error` if the parsing fails.

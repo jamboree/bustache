@@ -49,7 +49,7 @@ namespace test
 template<>
 struct bustache::impl_compatible<test::value>
 {
-    static value_ptr get_value_ptr(test::value const& self)
+    static value_ptr get_value_ptr(test::value::variant const& self)
     {
         return std::visit([](auto const& val) { return value_ptr(&val); }, self);
     }

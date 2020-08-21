@@ -9,6 +9,7 @@
 
 #include <bustache/format.hpp>
 #include <vector>
+#include <cstring>
 #include <concepts>
 #include <functional>
 #include <charconv>
@@ -579,7 +580,7 @@ namespace bustache
     };
 
     template<class T> requires (impl_model<T>::kind == model::object)
-    struct impl_test<T>; // Intentionally undefined.
+    struct impl_test<T> { impl_test() = delete; }; // Intentionally deleted.
 
     template<StrValueMap T>
     struct impl_object<T>
@@ -591,7 +592,7 @@ namespace bustache
         }
     };
 
-    template<ValueRange T> requires !String<T> && !StrValueMap<T>
+    template<ValueRange T> requires (!String<T> && !StrValueMap<T>)
     struct impl_model<T>
     {
         static constexpr model kind = model::list;
