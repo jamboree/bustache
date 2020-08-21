@@ -123,7 +123,7 @@ namespace bustache::ast
         }
 
         template<class F>
-        auto visit(F f, content c) const -> decltype(auto)
+        auto visit(F&& f, content c) const -> decltype(auto)
         {
             switch (c.kind)
             {

@@ -127,6 +127,8 @@ namespace bustache::detail
             , needs_indent()
         {}
 
+        content_visitor(content_visitor const&) = delete;
+
         template<class Visit>
         void resolve(std::string const& key, Visit visit) const
         {
