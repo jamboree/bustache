@@ -130,7 +130,7 @@ namespace bustache::detail
         content_visitor(content_visitor const&) = delete;
 
         template<class Visit>
-        void resolve(std::string const& key, Visit visit) const
+        void resolve(std::string_view key, Visit visit) const
         {
             auto ki = key.data();
             auto const ke = ki + key.size();
@@ -168,13 +168,13 @@ namespace bustache::detail
 
         ast::content_list const* find_override(std::string const& key) const;
 
-        void print_value(output_handler os, value_ptr val);
+        void print_value(output_handler os, value_ptr val, char const* sepc);
 
-        void handle_variable(ast::type tag, ast::variable const& variable, value_ptr val);
+        void handle_variable(ast::type tag, ast::variable const& variable, value_ptr val, char const* sepc);
 
         void expand(ast::content_list const& contents)
         {
-            for (auto const& content : contents)
+            for (auto const content : contents)
                 ctx.visit(*this, content);
         }
 
@@ -198,15 +198,22 @@ namespace bustache::detail
 
         void handle_section(ast::type tag, ast::block const& block, value_ptr val);
 
-        void resolve_and_handle(std::string const& key, unresolved_handler unresolved, value_handler handle);
+        void resolve_and_handle(std::string_view key, unresolved_handler unresolved, value_handler handle);
 
         void operator()(ast::type, ast::text const* text);
 
         void operator()(ast::type tag, ast::variable const* variable)
         {
-            resolve_and_handle(variable->key, variable_unresolved, [&](value_ptr val)
+            char const* sepc = nullptr;
+            std::string_view key = variable->key;
+            if (auto const split = variable->split)
             {
-                handle_variable(tag, *variable, val);
+                sepc = key.data() + (split + 1);
+                key = std::string_view(key.data(), split);
+            }
+            resolve_and_handle(key, variable_unresolved, [=](value_ptr val)
+            {
+                handle_variable(tag, *variable, val, sepc);
             });
         }
 
@@ -217,7 +224,7 @@ namespace bustache::detail
                 auto pc = find_override(block->key);
                 if (!pc)
                     pc = &block->contents;
-                for (auto const& content : *pc)
+                for (auto const content : *pc)
                     ctx.visit(*this, content);
             }
             else
@@ -245,37 +252,37 @@ namespace bustache::detail
         return nullptr;
     }
 
-    void content_visitor::print_value(output_handler os, value_ptr val)
+    void content_visitor::print_value(output_handler os, value_ptr val, char const* sepc)
     {
         switch (val.vptr->kind)
         {
         case model::lazy_value:
             static_cast<lazy_value_vtable const*>(val.vptr)->call(val.data, nullptr, [=](value_ptr val)
             {
-                print_value(os, val);
+                print_value(os, val, sepc);
             });
             break;
         case model::lazy_format:
         {
             auto const fmt = static_cast<lazy_format_vtable const*>(val.vptr)->call(val.data, nullptr);
-            auto const view = fmt.view();
-            for (auto const& content : view.contents)
-                view.ctx.visit(*this, content);
+            auto const& doc = fmt.doc();
+            for (auto const content : doc.contents)
+                doc.ctx.visit(*this, content);
             break;
         }
         default:
-            static_cast<value_vtable const*>(val.vptr)->print(val.data, os, nullptr);
+            static_cast<value_vtable const*>(val.vptr)->print(val.data, os, sepc);
         }
     }
 
-    void content_visitor::handle_variable(ast::type tag, ast::variable const& variable, value_ptr val)
+    void content_visitor::handle_variable(ast::type tag, ast::variable const& variable, value_ptr val, char const* sepc)
     {
         if (needs_indent)
         {
             raw_os(indent.data(), indent.size());
             needs_indent = false;
         }
-        print_value(tag == ast::type::var_raw ? raw_os : escape_os, val);
+        print_value(tag == ast::type::var_raw ? raw_os : escape_os, val, sepc);
     }
 
     bool content_visitor::expand_section(ast::type tag, ast::content_list const& contents, value_ptr val)
@@ -326,8 +333,8 @@ namespace bustache::detail
         case model::lazy_value:
         {
             bool ret = false;
-            ast::view local{ctx, contents};
-            static_cast<lazy_value_vtable const*>(val.vptr)->call(val.data, &local, [&](value_ptr val)
+            ast::view const view{ctx, contents};
+            static_cast<lazy_value_vtable const*>(val.vptr)->call(val.data, &view, [&](value_ptr val)
             {
                 ret = expand_section(tag, contents, val);
             });
@@ -337,11 +344,11 @@ namespace bustache::detail
         {
             if (tag == ast::type::filter)
                 return true;
-            ast::view local{ctx, contents};
-            auto const fmt = static_cast<lazy_format_vtable const*>(val.vptr)->call(val.data, &local);
-            auto const view = fmt.view();
-            for (auto const& content : view.contents)
-                view.ctx.visit(*this, content);
+            ast::view const view{ctx, contents};
+            auto const fmt = static_cast<lazy_format_vtable const*>(val.vptr)->call(val.data, &view);
+            auto const& doc = fmt.doc();
+            for (auto const content : doc.contents)
+                doc.ctx.visit(*this, content);
             return false;
         }
         }
@@ -354,13 +361,13 @@ namespace bustache::detail
         cursor = val;
         if (expand_section(tag, block.contents, val))
         {
-            for (auto const& content : block.contents)
+            for (auto const content : block.contents)
                 ctx.visit(*this, content);
         }
         cursor = old_cursor;
     }
 
-    void content_visitor::resolve_and_handle(std::string const& key, unresolved_handler unresolved, value_handler handle)
+    void content_visitor::resolve_and_handle(std::string_view key, unresolved_handler unresolved, value_handler handle)
     {
         resolve(key, [&](value_ptr val, char const* sub)
         {
@@ -375,7 +382,7 @@ namespace bustache::detail
             }
             else if (val)
                 return handle(val);
-            handle(unresolved ? unresolved(key) : nullptr);
+            handle(unresolved ? unresolved(key_cache) : nullptr);
         });
     }
 
@@ -412,8 +419,8 @@ namespace bustache::detail
     {
         if (auto p = context(partial->key))
         {
-            auto const view = p->view();
-            if (view.contents.empty())
+            auto const& doc = p->doc();
+            if (doc.contents.empty())
                 return;
             auto old_size = indent.size();
             auto old_chain = chain.size();
@@ -421,8 +428,8 @@ namespace bustache::detail
             needs_indent |= !partial->indent.empty();
             if (!partial->overriders.empty())
                 chain.push_back(&partial->overriders);
-            for (auto const& content : view.contents)
-                view.ctx.visit(*this, content);
+            for (auto const content : doc.contents)
+                doc.ctx.visit(*this, content);
             chain.resize(old_chain);
             indent.resize(old_size);
         }
@@ -431,9 +438,9 @@ namespace bustache::detail
     void render(output_handler raw_os, output_handler escape_os, format const& fmt, value_ptr data, context_handler context, unresolved_handler f)
     {
         content_scope scope{nullptr, object_ptr::from(data)};
-        auto const view = fmt.view();
-        content_visitor visitor{view.ctx, scope, data, raw_os, escape_os, context, f};
-        for (auto const& content : view.contents)
-            view.ctx.visit(visitor, content);
+        auto const& doc = fmt.doc();
+        content_visitor visitor{doc.ctx, scope, data, raw_os, escape_os, context, f};
+        for (auto const content : doc.contents)
+            doc.ctx.visit(visitor, content);
     }
 }

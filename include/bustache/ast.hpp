@@ -52,7 +52,6 @@ namespace bustache::ast
     {
         std::string key;
         content_list contents;
-        unsigned split;
     };
 
     struct partial
@@ -97,29 +96,60 @@ namespace bustache::ast
             return ret;
         }
 
-        template<class T>
-        static T* unconst(T const* p)
+    private:
+        template<type K>
+        struct tag;
+
+        template<>
+        struct tag<type::text>
         {
-            return const_cast<T*>(p);
+            using type = text;
+            template<class Self>
+            static auto data(Self& self) { return self.texts.data(); }
+        };
+
+        struct variable_tag
+        {
+            using type = variable;
+            template<class Self>
+            static auto data(Self& self) { return self.variables.data(); }
+        };
+
+        template<> struct tag<type::var_escaped> : variable_tag {};
+        template<> struct tag<type::var_raw> : variable_tag {};
+
+        struct block_tag
+        {
+            using type = block;
+            template<class Self>
+            static auto data(Self& self) { return self.blocks.data(); }
+        };
+
+        template<> struct tag<type::section> : block_tag {};
+        template<> struct tag<type::inversion> : block_tag {};
+        template<> struct tag<type::filter> : block_tag {};
+        template<> struct tag<type::loop> : block_tag {};
+        template<> struct tag<type::inheritance> : block_tag {};
+
+        template<>
+        struct tag<type::partial>
+        {
+            using type = partial;
+            template<class Self>
+            static auto data(Self& self) { return self.partials.data(); }
+        };
+
+    public:
+        template<type K>
+        typename tag<K>::type const* get_if(content c) const
+        {
+            return c.kind == K ? tag<K>::data(*this) + c.index : nullptr;
         }
 
         template<type K>
-        struct tag {};
-
-        block const* data(tag<type::section>) const { return blocks.data(); }
-        block const* data(tag<type::inheritance>) const { return blocks.data(); }
-        partial const* data(tag<type::partial>) const { return partials.data(); }
-
-        template<type K>
-        auto get_if(content c) const
+        typename tag<K>::type* get_if(content c)
         {
-            return c.kind == K ? data(tag<K>{}) + c.index : nullptr;
-        }
-
-        template<type K>
-        auto get_if(content c)
-        {
-            return unconst(const_cast<context const*>(this)->get_if<K>(c));
+            return c.kind == K ? tag<K>::data(*this) + c.index : nullptr;
         }
 
         template<class F>

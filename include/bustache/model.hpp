@@ -12,7 +12,7 @@
 #include <cstring>
 #include <concepts>
 #include <functional>
-#include <charconv>
+#include <fmt/format.h>
 
 namespace std
 {
@@ -385,14 +385,14 @@ namespace bustache::detail
         template<class T> requires requires{impl_print<T>{};}
         constexpr print_trait(type<T>) : print(print_impl<T>) {}
 
-        void(*print)(std::uintptr_t self, output_handler os, char const* fmt);
+        void(*print)(std::uintptr_t self, output_handler os, char const* spec);
 
         static void print_default(std::uintptr_t, output_handler, char const*) {}
 
         template<class T>
-        static void print_impl(std::uintptr_t self, output_handler os, char const* fmt)
+        static void print_impl(std::uintptr_t self, output_handler os, char const* spec)
         {
-            return impl_print<T>::print(deref_data<T>(self), os, fmt);
+            return impl_print<T>::print(deref_data<T>(self), os, spec);
         }
     };
 
@@ -513,15 +513,6 @@ namespace bustache
         }
     };
 
-    template<>
-    struct impl_print<bool>
-    {
-        static void print(bool self, output_handler os, char const* fmt)
-        {
-            self ? os("true", 4) : os("false", 5);
-        }
-    };
-
     template<Arithmetic T>
     struct impl_model<T>
     {
@@ -534,18 +525,6 @@ namespace bustache
         static bool test(T self)
         {
             return !!self;
-        }
-    };
-
-    template<Arithmetic T>
-    struct impl_print<T>
-    {
-        static void print(T self, output_handler os, char const* fmt)
-        {
-            char buf[256];
-            auto const [p, e] = std::to_chars(std::begin(buf), std::end(buf), self);
-            if (e == std::errc())
-                os(buf, p - buf);
         }
     };
 
@@ -564,12 +543,21 @@ namespace bustache
         }
     };
 
-    template<String T>
+    template<class T> requires requires {fmt::formatter<T>{};}
     struct impl_print<T>
     {
-        static void print(std::string_view self, output_handler os, char const* fmt)
+        static void print(T const& self, output_handler os, char const* spec)
         {
-            os(self.data(), self.size());
+            fmt::formatter<T> fmt;
+            if (spec)
+            {
+                fmt::format_parse_context ctx{spec};
+                fmt.parse(ctx);
+            }
+            fmt::memory_buffer buf;
+            fmt::format_context ctx{fmt::format_context::iterator(buf), {}};
+            fmt.format(self, ctx);
+            os(buf.data(), buf.size());
         }
     };
 

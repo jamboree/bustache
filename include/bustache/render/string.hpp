@@ -41,7 +41,7 @@ namespace bustache
     inline std::string to_string(manipulator<Opts...> const& manip)
     {
         std::string ret;
-        render_string(ret, manip.fmt, manip.data, detail::get_context(&manip), detail::get_escape(&manip));
+        render_string(ret, manip.fmt, manip.data, get_context(manip), get_escape(manip));
         return ret;
     }
 }

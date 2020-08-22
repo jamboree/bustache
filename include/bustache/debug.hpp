@@ -104,10 +104,10 @@ namespace bustache
     template<class CharT, class Traits>
     inline void print_ast(std::basic_ostream<CharT, Traits>& out, format const& fmt, unsigned indent = 4)
     {
-        auto const view = fmt.view();
-        detail::ast_printer<CharT, Traits> visitor{view.ctx, out, 0, indent};
-        for (auto const& content : view.contents)
-            view.ctx.visit(visitor, content);
+        auto const& doc = fmt.doc();
+        detail::ast_printer<CharT, Traits> visitor{doc.ctx, out, 0, indent};
+        for (auto const& content : doc.contents)
+            doc.ctx.visit(visitor, content);
     }
 }
 

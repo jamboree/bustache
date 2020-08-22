@@ -72,8 +72,9 @@ namespace bustache::parser { namespace
         return true;
     }
 
-    void expect_key(I b, I& i, I e, delim& d, std::string& attr, char sentinel)
+    unsigned expect_key(I b, I& i, I e, delim& d, std::string& attr, char sentinel)
     {
+        unsigned split = 0;
         skip(i, e);
         for (I const i0 = i; i != e; ++i)
         {
@@ -84,13 +85,19 @@ namespace bustache::parser { namespace
                 if (parse_lit(i, e, d.close))
                 {
                     if (i0 == i1)
-                        throw format_error(error_badkey, i - b);
+                        break;
                     attr.assign(i0, i1);
-                    return;
+                    return split;
                 }
             }
             if (i == e)
                 break;
+            if (!split && *i == ':')
+            {
+                split = unsigned(i - i0);
+                if (!split)
+                    break;
+            }
         }
         throw format_error(error_badkey, i - b);
     }
@@ -152,10 +159,22 @@ namespace bustache::parser { namespace
 
         bool expect_block(I b, I& i, I e, delim& d, bool& pure, ast::block& attr)
         {
-            expect_key(b, i, e, d, attr.key, '\0');
+            std::string key;
+            auto const split = expect_key(b, i, e, d, key, '\0');
             I i0 = process_pure(i, e, pure);
             bool standalone = pure;
-            parse_contents(b, i0, i, e, d, pure, attr.contents, attr.key);
+            std::string_view section;
+            if (split)
+            {
+                attr.key = key.substr(split);
+                section = std::string_view(key.data(), split);
+            }
+            else
+            {
+                attr.key = std::move(key);
+                section = attr.key;
+            }
+            parse_contents(b, i0, i, e, d, pure, attr.contents, section);
             return standalone;
         }
 
@@ -172,12 +191,12 @@ namespace bustache::parser { namespace
     {
         expect_key(b, i, e, d, attr.key, '\0');
         I i0 = process_pure(i, e, pure);
-        bool standalone = pure;
+        bool const standalone = pure;
         for (std::string_view text;;)
         {
             ast::content a;
-            auto end = parse_content(b, i0, i, e, d, pure, text, a, attr.key);
-            if (auto p = ctx.get_if<ast::type::inheritance>(a))
+            auto const end = parse_content(b, i0, i, e, d, pure, text, a, attr.key);
+            if (auto const p = ctx.get_if<ast::type::inheritance>(a))
                 attr.overriders.emplace(std::move(p->key), std::move(p->contents));
             if (end)
                 break;
@@ -304,7 +323,7 @@ namespace bustache::parser { namespace
         {
             ast::variable a;
             char const sentinel = *i == '{' ? '}' : '\0';
-            expect_key(b, ++i, e, d, a.key, sentinel);
+            a.split = expect_key(b, ++i, e, d, a.key, sentinel);
             attr = ctx.add(ast::type::var_raw, std::move(a));
             pure = false;
             break;
@@ -319,7 +338,7 @@ namespace bustache::parser { namespace
         }
         default:
             ast::variable a;
-            expect_key(b, i, e, d, a.key, '\0');
+            a.split = expect_key(b, i, e, d, a.key, '\0');
             attr = ctx.add(ast::type::var_escaped, std::move(a));
             pure = false;
             break;
@@ -346,14 +365,14 @@ namespace bustache::parser { namespace
                 ++i;
             else
             {
-                I i2 = i;
+                I const i2 = i;
                 if (parse_lit(i, e, d.open))
                 {
                     tag_result tag(expect_tag(b, i, e, d, pure, attr, section));
                     text = std::string_view(i0, i1 - i0);
                     if (tag.check_standalone)
                     {
-                        I i3 = i;
+                        I const i3 = i;
                         while (i != e)
                         {
                             if (*i == '\n')
@@ -378,7 +397,7 @@ namespace bustache::parser { namespace
                     }
                     if (!tag.is_standalone)
                         text = std::string_view(i0, i2 - i0);
-                    else if (auto partial = ctx.get_if<ast::type::partial>(attr))
+                    else if (auto const partial = ctx.get_if<ast::type::partial>(attr))
                         partial->indent.assign(i1, i2 - i1);
                     i0 = i;
                     return i == e || tag.is_end_section;

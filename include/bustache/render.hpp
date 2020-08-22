@@ -39,13 +39,16 @@ namespace bustache
         }
     };
 
-    struct no_escape_t
+    inline no_context_t get_context(detail::manip_base const&)
     {
-        output_handler operator()(output_handler os) const
-        {
-            return os;
-        }
-    };
+        return {};
+    }
+
+    template<class T>
+    inline T const& get_context(detail::manip_context<T> const& manip)
+    {
+        return manip.context;
+    }
 }
 
 namespace bustache::detail
@@ -104,28 +107,6 @@ namespace bustache::detail
         }
     };
 
-    inline no_context_t get_context(void const*)
-    {
-        return {};
-    }
-
-    template<class T>
-    inline T const& get_context(manip_context<T> const* p)
-    {
-        return p->context;
-    }
-
-    inline no_escape_t get_escape(void const*)
-    {
-        return {};
-    }
-
-    template<class T>
-    inline T const& get_escape(manip_escape<T> const* p)
-    {
-        return p->escape;
-    }
-
     void render
     (
         output_handler raw_os, output_handler escape_os, format const& fmt, value_ptr data,
@@ -135,12 +116,31 @@ namespace bustache::detail
 
 namespace bustache
 {
+    struct no_escape_t
+    {
+        output_handler operator()(output_handler os) const
+        {
+            return os;
+        }
+    };
+
     constexpr no_escape_t no_escape{};
 
     constexpr auto escape_html = []<class Sink>(Sink const& sink)
     {
         return detail::escape_sink<Sink>{sink};
     };
+
+    inline no_escape_t get_escape(detail::manip_base const&)
+    {
+        return {};
+    }
+
+    template<class T>
+    inline T const& get_escape(detail::manip_escape<T> const& manip)
+    {
+        return manip.escape;
+    }
 
     template<class Sink, Value T, class Escape = no_escape_t>
     inline void render

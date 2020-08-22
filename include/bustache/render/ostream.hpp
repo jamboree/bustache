@@ -41,7 +41,7 @@ namespace bustache
     inline std::basic_ostream<CharT, Traits>&
     operator<<(std::basic_ostream<CharT, Traits>& out, manipulator<Opts...> const& manip)
     {
-        render_ostream(out, manip.fmt, manip.data, detail::get_context(&manip), detail::get_escape(&manip));
+        render_ostream(out, manip.fmt, manip.data, get_context(manip), get_escape(manip));
         return out;
     }
 }
