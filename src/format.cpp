@@ -166,7 +166,7 @@ namespace bustache::parser { namespace
             std::string_view section;
             if (split)
             {
-                attr.key = key.substr(split);
+                attr.key = key.substr(split + 1);
                 section = std::string_view(key.data(), split);
             }
             else

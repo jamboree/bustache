@@ -39,15 +39,24 @@ namespace bustache
         }
     };
 
-    inline no_context_t get_context(detail::manip_base const&)
+    namespace detail
     {
-        return {};
+        inline no_context_t get_context(void const*)
+        {
+            return {};
+        }
+
+        template<class T>
+        inline T const& get_context(manip_context<T> const* p)
+        {
+            return p->context;
+        }
     }
 
-    template<class T>
-    inline T const& get_context(detail::manip_context<T> const& manip)
+    template<class... Opts>
+    inline decltype(auto) get_context(manipulator<Opts...> const& manip)
     {
-        return manip.context;
+        return detail::get_context(&manip);
     }
 }
 
@@ -131,15 +140,24 @@ namespace bustache
         return detail::escape_sink<Sink>{sink};
     };
 
-    inline no_escape_t get_escape(detail::manip_base const&)
+    namespace detail
     {
-        return {};
+        inline no_escape_t get_escape(void const*)
+        {
+            return {};
+        }
+
+        template<class T>
+        inline T const& get_escape(detail::manip_escape<T> const* p)
+        {
+            return p->escape;
+        }
     }
 
-    template<class T>
-    inline T const& get_escape(detail::manip_escape<T> const& manip)
+    template<class... Opts>
+    inline decltype(auto) get_escape(manipulator<Opts...> const& manip)
     {
-        return manip.escape;
+        return detail::get_escape(&manip);
     }
 
     template<class Sink, Value T, class Escape = no_escape_t>

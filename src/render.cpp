@@ -102,7 +102,7 @@ namespace bustache::detail
     {
         using result_type = void;
 
-        ast::context const& ctx;
+        ast::context const* ctx;
         content_scope const* scope;
         value_ptr cursor;
         std::vector<ast::override_map const*> chain;
@@ -121,7 +121,7 @@ namespace bustache::detail
             output_handler raw_os, output_handler escape_os, context_handler context,
             unresolved_handler f
         )
-            : ctx(ctx), scope(&scope), cursor(cursor)
+            : ctx(&ctx), scope(&scope), cursor(cursor)
             , raw_os(raw_os), escape_os(escape_os), context(context)
             , variable_unresolved(f)
             , needs_indent()
@@ -166,6 +166,15 @@ namespace bustache::detail
             }
         }
 
+        void visit_contents(ast::document const& doc)
+        {
+            auto const old_ctx = ctx;
+            ctx = &doc.ctx;
+            for (auto const content : doc.contents)
+                doc.ctx.visit(*this, content);
+            ctx = old_ctx;
+        }
+
         ast::content_list const* find_override(std::string const& key) const;
 
         void print_value(output_handler os, value_ptr val, char const* sepc);
@@ -175,7 +184,7 @@ namespace bustache::detail
         void expand(ast::content_list const& contents)
         {
             for (auto const content : contents)
-                ctx.visit(*this, content);
+                ctx->visit(*this, content);
         }
 
         void expand_on_object(ast::content_list const& contents, object_ptr data)
@@ -225,7 +234,7 @@ namespace bustache::detail
                 if (!pc)
                     pc = &block->contents;
                 for (auto const content : *pc)
-                    ctx.visit(*this, content);
+                    ctx->visit(*this, content);
             }
             else
             {
@@ -265,9 +274,7 @@ namespace bustache::detail
         case model::lazy_format:
         {
             auto const fmt = static_cast<lazy_format_vtable const*>(val.vptr)->call(val.data, nullptr);
-            auto const& doc = fmt.doc();
-            for (auto const content : doc.contents)
-                doc.ctx.visit(*this, content);
+            visit_contents(fmt.doc());
             break;
         }
         default:
@@ -333,7 +340,7 @@ namespace bustache::detail
         case model::lazy_value:
         {
             bool ret = false;
-            ast::view const view{ctx, contents};
+            ast::view const view{*ctx, contents};
             static_cast<lazy_value_vtable const*>(val.vptr)->call(val.data, &view, [&](value_ptr val)
             {
                 ret = expand_section(tag, contents, val);
@@ -344,11 +351,9 @@ namespace bustache::detail
         {
             if (tag == ast::type::filter)
                 return true;
-            ast::view const view{ctx, contents};
+            ast::view const view{*ctx, contents};
             auto const fmt = static_cast<lazy_format_vtable const*>(val.vptr)->call(val.data, &view);
-            auto const& doc = fmt.doc();
-            for (auto const content : doc.contents)
-                doc.ctx.visit(*this, content);
+            visit_contents(fmt.doc());
             return false;
         }
         }
@@ -362,7 +367,7 @@ namespace bustache::detail
         if (expand_section(tag, block.contents, val))
         {
             for (auto const content : block.contents)
-                ctx.visit(*this, content);
+                ctx->visit(*this, content);
         }
         cursor = old_cursor;
     }
@@ -428,8 +433,7 @@ namespace bustache::detail
             needs_indent |= !partial->indent.empty();
             if (!partial->overriders.empty())
                 chain.push_back(&partial->overriders);
-            for (auto const content : doc.contents)
-                doc.ctx.visit(*this, content);
+            visit_contents(doc);
             chain.resize(old_chain);
             indent.resize(old_size);
         }

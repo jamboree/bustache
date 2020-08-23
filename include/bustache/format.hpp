@@ -19,14 +19,10 @@ namespace bustache
 
     namespace detail
     {
-        struct manip_base
-        {
-            format const& fmt;
-        };
-
         template<class T>
         struct manip_core
         {
+            format const& fmt;
             T const& data;
         };
 
@@ -44,18 +40,18 @@ namespace bustache
     }
 
     template<class... Opts>
-    struct manipulator : detail::manip_base, Opts...
+    struct manipulator : Opts...
     {
         template<class T>
         manipulator<Opts..., detail::manip_context<T>> context(T const& context_) const noexcept
         {
-            return {fmt, static_cast<Opts const&>(*this)..., context_};
+            return {static_cast<Opts const&>(*this)..., context_};
         }
 
         template<class T>
         manipulator<Opts..., detail::manip_escape<T>> escape(T const& escape_) const noexcept
         {
-            return {fmt, static_cast<Opts const&>(*this)..., escape_};
+            return {static_cast<Opts const&>(*this)..., escape_};
         }
     };
 
