@@ -41,7 +41,6 @@ struct bustache::impl_object<S>
     }
 };
 
-
 struct Sep
 {
     char sep;
@@ -88,4 +87,11 @@ TEST_CASE("section-alias")
 {
     Sep sep{'-'};
     CHECK(to_string("{{#a:over-my-dead-body}}({{.}}){{/a}}"_fmt(sep)) == "(over)(my)(dead)(body)");
+}
+
+TEST_CASE("parse-error")
+{
+    CHECK_THROWS_WITH("{{:}}"_fmt, "invalid key");
+    CHECK_THROWS_WITH("{{:a}}"_fmt, "invalid key");
+    CHECK_THROWS_WITH("{{a:}}"_fmt, "invalid key");
 }

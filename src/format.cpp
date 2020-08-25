@@ -84,18 +84,18 @@ namespace bustache::parser { namespace
             {
                 if (parse_lit(i, e, d.close))
                 {
-                    if (i0 == i1)
+                    if (split ? split + 1 == i1 - i0 : i0 == i1) [[unlikely]]
                         break;
                     attr.assign(i0, i1);
                     return split;
                 }
             }
-            if (i == e)
+            if (i == e) [[unlikely]]
                 break;
             if (!split && *i == ':')
             {
                 split = unsigned(i - i0);
-                if (!split)
+                if (!split) [[unlikely]]
                     break;
             }
         }

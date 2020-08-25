@@ -166,7 +166,7 @@ namespace bustache::detail
             }
         }
 
-        void visit_contents(ast::document const& doc)
+        void visit_within(ast::document const& doc)
         {
             auto const old_ctx = ctx;
             ctx = &doc.ctx;
@@ -274,7 +274,7 @@ namespace bustache::detail
         case model::lazy_format:
         {
             auto const fmt = static_cast<lazy_format_vtable const*>(val.vptr)->call(val.data, nullptr);
-            visit_contents(fmt.doc());
+            visit_within(fmt.doc());
             break;
         }
         default:
@@ -353,7 +353,7 @@ namespace bustache::detail
                 return true;
             ast::view const view{*ctx, contents};
             auto const fmt = static_cast<lazy_format_vtable const*>(val.vptr)->call(val.data, &view);
-            visit_contents(fmt.doc());
+            visit_within(fmt.doc());
             return false;
         }
         }
@@ -433,7 +433,7 @@ namespace bustache::detail
             needs_indent |= !partial->indent.empty();
             if (!partial->overriders.empty())
                 chain.push_back(&partial->overriders);
-            visit_contents(doc);
+            visit_within(doc);
             chain.resize(old_chain);
             indent.resize(old_size);
         }
