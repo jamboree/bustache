@@ -98,6 +98,18 @@ namespace bustache::detail
         }
     };
 
+    struct override_context
+    {
+        ast::override_map const* map;
+        ast::context const* ctx;
+    };
+
+    struct override_find_result
+    {
+        ast::content_list const* found;
+        ast::context const* ctx;
+    };
+
     struct content_visitor
     {
         using result_type = void;
@@ -105,7 +117,7 @@ namespace bustache::detail
         ast::context const* ctx;
         content_scope const* scope;
         value_ptr cursor;
-        std::vector<ast::override_map const*> chain;
+        std::vector<override_context> chain;
         mutable std::string key_cache;
 
         output_handler raw_os;
@@ -166,20 +178,25 @@ namespace bustache::detail
             }
         }
 
-        void visit_within(ast::document const& doc)
+        void visit_within(ast::context const& new_ctx, ast::content_list const& contents)
         {
             auto const old_ctx = ctx;
-            ctx = &doc.ctx;
-            for (auto const content : doc.contents)
-                doc.ctx.visit(*this, content);
+            ctx = &new_ctx;
+            for (auto const content : contents)
+                new_ctx.visit(*this, content);
             ctx = old_ctx;
         }
 
-        ast::content_list const* find_override(std::string const& key) const;
+        void visit_within(ast::document const& doc)
+        {
+            visit_within(doc.ctx, doc.contents);
+        }
+
+        override_find_result find_override(std::string const& key) const;
 
         void print_value(output_handler os, value_ptr val, char const* sepc);
 
-        void handle_variable(ast::type tag, ast::variable const& variable, value_ptr val, char const* sepc);
+        void handle_variable(ast::type tag, value_ptr val, char const* sepc);
 
         void expand(ast::content_list const& contents)
         {
@@ -220,9 +237,9 @@ namespace bustache::detail
                 sepc = key.data() + (split + 1);
                 key = std::string_view(key.data(), split);
             }
-            resolve_and_handle(key, variable_unresolved, [=](value_ptr val)
+            resolve_and_handle(key, variable_unresolved, [=, this](value_ptr val)
             {
-                handle_variable(tag, *variable, val, sepc);
+                handle_variable(tag, val, sepc);
             });
         }
 
@@ -230,11 +247,14 @@ namespace bustache::detail
         {
             if (tag == ast::type::inheritance)
             {
-                auto pc = find_override(block->key);
-                if (!pc)
-                    pc = &block->contents;
-                for (auto const content : *pc)
-                    ctx->visit(*this, content);
+                auto const result = find_override(block->key);
+                if (result.found)
+                    visit_within(*result.ctx, *result.found);
+                else
+                {
+                    for (auto const content : block->contents)
+                        ctx->visit(*this, content);
+                }
             }
             else
             {
@@ -250,15 +270,15 @@ namespace bustache::detail
         void operator()(ast::type, void const*) const {} // never called
     };
 
-    ast::content_list const* content_visitor::find_override(std::string const& key) const
+    override_find_result content_visitor::find_override(std::string const& key) const
     {
         for (auto const pm : chain)
         {
-            auto const it = pm->find(key);
-            if (it != pm->end())
-                return &it->second;
+            auto const it = pm.map->find(key);
+            if (it != pm.map->end())
+                return {&it->second, pm.ctx};
         }
-        return nullptr;
+        return {};
     }
 
     void content_visitor::print_value(output_handler os, value_ptr val, char const* sepc)
@@ -266,7 +286,7 @@ namespace bustache::detail
         switch (val.vptr->kind)
         {
         case model::lazy_value:
-            static_cast<lazy_value_vtable const*>(val.vptr)->call(val.data, nullptr, [=](value_ptr val)
+            static_cast<lazy_value_vtable const*>(val.vptr)->call(val.data, nullptr, [=, this](value_ptr val)
             {
                 print_value(os, val, sepc);
             });
@@ -282,7 +302,7 @@ namespace bustache::detail
         }
     }
 
-    void content_visitor::handle_variable(ast::type tag, ast::variable const& variable, value_ptr val, char const* sepc)
+    void content_visitor::handle_variable(ast::type tag, value_ptr val, char const* sepc)
     {
         if (needs_indent)
         {
@@ -308,6 +328,8 @@ namespace bustache::detail
                 break;
             case ast::type::loop:
                 kind = model::list;
+                break;
+            default:
                 break;
             }
         }
@@ -422,17 +444,17 @@ namespace bustache::detail
 
     void content_visitor::operator()(ast::type, ast::partial const* partial)
     {
-        if (auto p = context(partial->key))
+        if (auto const p = context(partial->key))
         {
             auto const& doc = p->doc();
             if (doc.contents.empty())
                 return;
-            auto old_size = indent.size();
-            auto old_chain = chain.size();
+            auto const old_size = indent.size();
+            auto const old_chain = chain.size();
             indent += partial->indent;
             needs_indent |= !partial->indent.empty();
             if (!partial->overriders.empty())
-                chain.push_back(&partial->overriders);
+                chain.push_back({&partial->overriders, ctx});
             visit_within(doc);
             chain.resize(old_chain);
             indent.resize(old_size);

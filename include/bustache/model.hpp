@@ -31,7 +31,8 @@ namespace bustache::detail
 
     template<class T>
     constexpr bool is_inplace_v =
-        std::is_trivial_v<T> &&
+        std::is_trivially_default_constructible_v<T> &&
+        std::is_trivially_copyable_v<T> &&
         can_store_in_v<T, std::uintptr_t>;
 
     template<class T>
@@ -322,7 +323,7 @@ namespace bustache::detail
     struct lazy_format_vtable : vtable_base
     {
         template<class F>
-        constexpr lazy_format_vtable(type<F> t) : vtable_base{model::lazy_format}, call(call_impl<F>) {}
+        constexpr lazy_format_vtable(type<F>) : vtable_base{model::lazy_format}, call(call_impl<F>) {}
 
         format(*call)(std::uintptr_t, ast::view const*);
 
@@ -339,7 +340,7 @@ namespace bustache::detail
     struct lazy_value_vtable : vtable_base
     {
         template<class F>
-        constexpr lazy_value_vtable(type<F> t) : vtable_base{model::lazy_value}, call(call_impl<F>) {}
+        constexpr lazy_value_vtable(type<F>) : vtable_base{model::lazy_value}, call(call_impl<F>) {}
 
         void(*call)(std::uintptr_t, ast::view const*, value_handler visit);
 
@@ -479,7 +480,7 @@ namespace bustache
     template<class T>
     inline void value_ptr::init_model(T const* p) noexcept
     {
-        sizeof(detail::check_model<impl_model<T>::kind, T>);
+        static_assert(sizeof(detail::check_model<impl_model<T>::kind, T>));
         data = detail::encode_data(p);
         vptr = &detail::value_vt<T>;
     }

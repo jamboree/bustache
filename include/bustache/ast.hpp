@@ -100,44 +100,8 @@ namespace bustache::ast
         template<type K>
         struct tag;
 
-        template<>
-        struct tag<type::text>
-        {
-            using type = text;
-            template<class Self>
-            static auto data(Self& self) { return self.texts.data(); }
-        };
-
-        struct variable_tag
-        {
-            using type = variable;
-            template<class Self>
-            static auto data(Self& self) { return self.variables.data(); }
-        };
-
-        template<> struct tag<type::var_escaped> : variable_tag {};
-        template<> struct tag<type::var_raw> : variable_tag {};
-
-        struct block_tag
-        {
-            using type = block;
-            template<class Self>
-            static auto data(Self& self) { return self.blocks.data(); }
-        };
-
-        template<> struct tag<type::section> : block_tag {};
-        template<> struct tag<type::inversion> : block_tag {};
-        template<> struct tag<type::filter> : block_tag {};
-        template<> struct tag<type::loop> : block_tag {};
-        template<> struct tag<type::inheritance> : block_tag {};
-
-        template<>
-        struct tag<type::partial>
-        {
-            using type = partial;
-            template<class Self>
-            static auto data(Self& self) { return self.partials.data(); }
-        };
+        struct variable_tag;
+        struct block_tag;
 
     public:
         template<type K>
@@ -171,6 +135,45 @@ namespace bustache::ast
             case type::partial: return f(c.kind, partials.data() + c.index);
             }
         }
+    };
+
+    template<>
+    struct context::tag<type::text>
+    {
+        using type = text;
+        template<class Self>
+        static auto data(Self& self) { return self.texts.data(); }
+    };
+
+    struct context::variable_tag
+    {
+        using type = variable;
+        template<class Self>
+        static auto data(Self& self) { return self.variables.data(); }
+    };
+
+    template<> struct context::tag<type::var_escaped> : variable_tag {};
+    template<> struct context::tag<type::var_raw> : variable_tag {};
+
+    struct context::block_tag
+    {
+        using type = block;
+        template<class Self>
+        static auto data(Self& self) { return self.blocks.data(); }
+    };
+
+    template<> struct context::tag<type::section> : block_tag {};
+    template<> struct context::tag<type::inversion> : block_tag {};
+    template<> struct context::tag<type::filter> : block_tag {};
+    template<> struct context::tag<type::loop> : block_tag {};
+    template<> struct context::tag<type::inheritance> : block_tag {};
+
+    template<>
+    struct context::tag<type::partial>
+    {
+        using type = partial;
+        template<class Self>
+        static auto data(Self& self) { return self.partials.data(); }
     };
 
     struct document

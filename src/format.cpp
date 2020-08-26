@@ -102,28 +102,34 @@ namespace bustache::parser { namespace
         throw format_error(error_badkey, i - b);
     }
 
-    I process_pure(I& i, I e, bool& pure) noexcept
+    struct pure_result
     {
-        I i0 = i;
+        I start;
+        bool standalone;
+    };
+
+    pure_result process_pure(I& i, I e, bool pure) noexcept
+    {
+        pure_result ret{i, pure};
         if (pure)
         {
             while (i != e)
             {
                 if (*i == '\n')
                 {
-                    i0 = ++i;
+                    ret.start = ++i;
                     break;
                 }
                 else if (is_space(*i))
                     ++i;
                 else
                 {
-                    pure = false;
+                    ret.standalone = false;
                     break;
                 }
             }
         }
-        return i0;
+        return ret;
     }
 
     struct tag_result
@@ -161,8 +167,7 @@ namespace bustache::parser { namespace
         {
             std::string key;
             auto const split = expect_key(b, i, e, d, key, '\0');
-            I i0 = process_pure(i, e, pure);
-            bool standalone = pure;
+            auto const [i0, standalone] = process_pure(i, e, pure);
             std::string_view section;
             if (split)
             {
@@ -190,8 +195,7 @@ namespace bustache::parser { namespace
     bool parser::expect_inheritance(I b, I& i, I e, delim& d, bool& pure, ast::partial& attr)
     {
         expect_key(b, i, e, d, attr.key, '\0');
-        I i0 = process_pure(i, e, pure);
-        bool const standalone = pure;
+        auto [i0, standalone] = process_pure(i, e, pure);
         for (std::string_view text;;)
         {
             ast::content a;
@@ -427,7 +431,7 @@ namespace bustache::parser { namespace
             if (!text.empty())
                 attr.push_back(ctx.add(text));
             if (!a.is_null())
-                attr.push_back(std::move(a));
+                attr.push_back(a);
             if (end)
                 return;
         }

@@ -52,6 +52,30 @@ std::string read_file(char const* path)
     return ret;
 }
 
+struct file_context
+{
+    struct partail
+    {
+        std::string text;
+        bustache::format format;
+
+        void init(std::string const& filename)
+        {
+            text = read_file(filename.c_str());
+            format = bustache::format(text);
+        }
+    };
+    mutable std::unordered_map<std::string, partail> cache;
+
+    bustache::format const* operator()(std::string const& key) const
+    {
+        auto [pos, inserted] = cache.try_emplace(key);
+        if (inserted)
+            pos->second.init(key + ".mustache");
+        return pos->second.text.empty() ? nullptr : &pos->second.format;
+    }
+};
+
 int main()
 {
     try
@@ -59,7 +83,8 @@ int main()
         auto const json = nlohmann::json::parse(read_file("in.json"));
         auto const file = read_file("in.mustache");
         bustache::format fmt(file);
-        std::cout << fmt(json);
+        file_context ctx;
+        std::cout << fmt(json).context(ctx);
     }
     catch (const std::exception& e)
     {
