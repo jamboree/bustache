@@ -1,89 +1,120 @@
-cmake_minimum_required(VERSION 3.2 FATAL_ERROR)
+cmake_minimum_required(VERSION 3.15)
 
-#set(CMAKE_MODULE_PATH ${CMAKE_MODULE_PATH} )
-list(APPEND CMAKE_MODULE_PATH "${CMAKE_SOURCE_DIR}/cmake/Modules/")
-
-project(bustache VERSION 1.1.0 LANGUAGES CXX)
+project(bustache VERSION 0.1.0 LANGUAGES CXX)
 
 option(BUSTACHE_ENABLE_TESTING "Enable testing of the bustache library." OFF)
-option(EXPORT_BUILD_DIR "Export build directory using CMake (enables external use without install)" OFF)
 
-# Set the default CMAKE_BUILD_TYPE to Release.
-# This should be done before the project command since the latter can set
-# CMAKE_BUILD_TYPE itself (it does so for nmake).
-if (NOT CMAKE_BUILD_TYPE)
-  set(CMAKE_BUILD_TYPE Release CACHE STRING
-    "Choose the type of build, options are: None(CMAKE_CXX_FLAGS or CMAKE_C_FLAGS used) Debug Release RelWithDebInfo MinSizeRel.")
-endif()
+message(STATUS "Started CMake for ${PROJECT_NAME} v${PROJECT_VERSION}...\n")
 
-add_library(${PROJECT_NAME} STATIC
-    src/format.cpp
-    src/generate.cpp
+add_library(
+  ${PROJECT_NAME}
+  src/format.cpp
+  src/render.cpp
 )
 
-find_package(Boost REQUIRED)
-if(CMAKE_VERSION VERSION_LESS 3.5)
-    # Boost imported targets were introduced in CMake 3.5
-    # Fallback to a traditional but less generic approach
-    target_include_directories(${PROJECT_NAME}
-        PUBLIC
-            ${Boost_INCLUDE_DIR}
-    )
-else()
-    target_link_libraries(${PROJECT_NAME}
-        PUBLIC
-            Boost::boost
-    )
-endif()
+target_compile_features(${PROJECT_NAME} PUBLIC cxx_std_20)
 
-# Define headers for this library. PUBLIC headers are used for
-# compiling the library, and will be added to consumers' build
-# paths.
-target_include_directories(${PROJECT_NAME}
-    PUBLIC
-        $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
-        $<INSTALL_INTERFACE:include>
+if (BUILD_SHARED_LIBS)
+  target_compile_definitions(${PROJECT_NAME} PRIVATE BUSTACHE_EXPORT INTERFACE BUSTACHE_SHARED)
+endif ()
+
+# Allow usage of header files in the `src` directory, but only for utilities
+target_include_directories(
+  ${PROJECT_NAME}
+  PUBLIC 
+    $<INSTALL_INTERFACE:include>    
+    $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
+  PRIVATE
+    ${CMAKE_CURRENT_SOURCE_DIR}/src
 )
 
-# If we have compiler requirements for this library, list them here
-# target_compile_features(${PROJECT_NAME}
-#     PUBLIC
-#         cxx_alias_templates
-#         cxx_auto_type
-#         cxx_decltype_auto
-#         cxx_user_literals
-#         cxx_rvalue_references
-#         cxx_range_for
-#         cxx_nullptr
-#         cxx_noexcept
-#         cxx_inline_namespaces
-# )
-
-set_target_properties(${PROJECT_NAME} PROPERTIES
-    CXX_STANDARD 11
+# Identify and link with the specific "packages" the project uses
+#find_package(package_name package_version REQUIRED package_type [other_options])
+#target_link_libraries(
+#  ${PROJECT_NAME}
+#  PUBLIC
+#    dependency1 ...
+#  PRIVATE
+#    dependency2 ...
+#    ${PROJECT_NAME}_PROJECT_OPTIONS        
+#    ${PROJECT_NAME}_PROJECT_WARNINGS        
+#)
+find_package(fmt REQUIRED)
+target_link_libraries(
+  ${PROJECT_NAME}
+  PUBLIC
+      fmt::fmt
 )
 
-# 'make install' to the correct location
-install(TARGETS ${PROJECT_NAME} EXPORT bustache-targets
-    ARCHIVE  DESTINATION lib
-    LIBRARY  DESTINATION lib
-    RUNTIME  DESTINATION bin  # This is for Windows
-)
-install(DIRECTORY include/ DESTINATION include)
-install(EXPORT bustache-targets NAMESPACE bustache:: DESTINATION share/bustache/cmake)
-export(EXPORT bustache-targets NAMESPACE bustache::)
-configure_file(cmake/bustache-config.cmake.in bustache-config.cmake @ONLY)
-install(FILES "${PROJECT_BINARY_DIR}/bustache-config.cmake" DESTINATION share/bustache/cmake)
+add_library(${PROJECT_NAME}::${PROJECT_NAME} ALIAS ${PROJECT_NAME})
 
+include(GNUInstallDirs)
+
+# Install the library and headers.
+install(
+  TARGETS
+    ${PROJECT_NAME}
+  EXPORT
+    ${PROJECT_NAME}-targets
+  LIBRARY DESTINATION
+    ${CMAKE_INSTALL_LIBDIR}
+  RUNTIME DESTINATION
+    ${CMAKE_INSTALL_BINDIR}
+  ARCHIVE DESTINATION
+    ${CMAKE_INSTALL_LIBDIR}
+  INCLUDES DESTINATION
+    include
+  PUBLIC_HEADER DESTINATION
+    include
+)
+
+# Install version, config and target files.
+install(
+  EXPORT 
+    ${PROJECT_NAME}-targets
+  FILE
+    ${PROJECT_NAME}-targets.cmake
+  NAMESPACE
+    ${PROJECT_NAME}::
+  DESTINATION
+    ${CMAKE_INSTALL_LIBDIR}/cmake/${PROJECT_NAME}
+)
+
+# Install the `include` directory
+install(
+  DIRECTORY
+    include/${PROJECT_NAME}
+  DESTINATION
+    include
+)
+
+# Quick `config-version.cmake` creation
 include(CMakePackageConfigHelpers)
-write_basic_package_version_file(bustache-config-version.cmake VERSION ${PROJECT_VERSION} COMPATIBILITY SameMajorVersion)
-install(FILES "${PROJECT_BINARY_DIR}/bustache-config-version.cmake" DESTINATION share/bustache/cmake)
+write_basic_package_version_file(
+    ${PROJECT_NAME}-config-version.cmake
+  VERSION
+    ${PROJECT_VERSION}
+  COMPATIBILITY
+    SameMajorVersion
+)
 
-if (BUSTACHE_ENABLE_TESTING)
-    enable_testing()
-    add_subdirectory(test)
-endif()
+configure_package_config_file(
+  ${CMAKE_CURRENT_LIST_DIR}/cmake/${PROJECT_NAME}-config.cmake.in
+  ${CMAKE_CURRENT_BINARY_DIR}/${PROJECT_NAME}-config.cmake
+  INSTALL_DESTINATION 
+    ${CMAKE_INSTALL_LIBDIR}/cmake/${PROJECT_NAME}
+)
 
-if (EXPORT_BUILD_DIR)
-    export(PACKAGE ${PROJECT_NAME})
+install(
+  FILES
+    ${CMAKE_CURRENT_BINARY_DIR}/${PROJECT_NAME}-config.cmake
+    ${CMAKE_CURRENT_BINARY_DIR}/${PROJECT_NAME}-config-version.cmake
+  DESTINATION
+    ${CMAKE_INSTALL_LIBDIR}/cmake/${PROJECT_NAME}
+)
+
+# Unit testing setup
+if(BUSTACHE_ENABLE_TESTING)
+  enable_testing()
+  add_subdirectory(test)
 endif()

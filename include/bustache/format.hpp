@@ -13,6 +13,17 @@
 #include <utility>
 #include <memory>
 
+#if defined(_WIN32)
+#   ifdef BUSTACHE_EXPORT
+#       define BUSTACHE_API __declspec(dllexport)
+#   elif defined(BUSTACHE_SHARED)
+#       define BUSTACHE_API __declspec(dllimport)
+#   endif
+#endif
+#ifndef BUSTACHE_API
+#   define BUSTACHE_API
+#endif
+
 namespace bustache
 {
     struct format;
@@ -70,7 +81,7 @@ namespace bustache
         std::ptrdiff_t _pos;
 
     public:
-        format_error(error_type err, std::ptrdiff_t position);
+        BUSTACHE_API format_error(error_type err, std::ptrdiff_t position);
 
         error_type code() const noexcept { return _err; }
         std::ptrdiff_t position() const noexcept { return _pos; }
@@ -126,9 +137,9 @@ namespace bustache
         }
         
     private:
-        void init(char const* begin, char const* end);
-        std::size_t text_size() const noexcept;
-        void copy_text(std::size_t n);
+        BUSTACHE_API void init(char const* begin, char const* end);
+        BUSTACHE_API std::size_t text_size() const noexcept;
+        BUSTACHE_API void copy_text(std::size_t n);
 
         ast::document _doc;
         std::unique_ptr<char[]> _text;

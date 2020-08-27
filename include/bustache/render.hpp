@@ -116,7 +116,7 @@ namespace bustache::detail
         }
     };
 
-    void render
+    BUSTACHE_API void render
     (
         output_handler raw_os, output_handler escape_os, format const& fmt, value_ptr data,
         context_handler context, unresolved_handler f
