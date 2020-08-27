@@ -2,7 +2,9 @@
 ========
 
 C++20 implementation of [{{ mustache }}](http://mustache.github.io/), compliant with [spec](https://github.com/mustache/spec) v1.1.3.
-No external dependencies required.
+
+### Dependencies
+* [fmt](https://github.com/fmtlib/fmt)
 
 ### Optional Dependencies
 * [Google.Benchmark](https://github.com/google/benchmark) - for benchmark
@@ -268,7 +270,7 @@ See [benchmark.cpp](test/benchmark.cpp).
 
 Sample run (VS2019 16.7.2, boost 1.73.0, 64-bit release build):
 ```
-08/21/20 09:31:39
+08/27/20 15:41:51
 Running F:\code\Notation\x64\Release\Notation.exe
 Run on (8 X 3600 MHz CPU s)
 CPU Caches:
@@ -279,9 +281,9 @@ CPU Caches:
 ---------------------------------------------------------
 Benchmark               Time             CPU   Iterations
 ---------------------------------------------------------
-bustache_usage       4366 ns         4395 ns       160000
-mstch_usage         70794 ns        71498 ns         8960
-kainjow_usage       25155 ns        25112 ns        28000
+bustache_usage       5193 ns         5313 ns       100000
+mstch_usage         72931 ns        73242 ns         8960
+kainjow_usage       26192 ns        26088 ns        26353
 ```
 Lower is better.
 
