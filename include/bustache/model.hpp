@@ -220,6 +220,12 @@ namespace bustache
         t.find(key) == t.end();
     } && Value<typename T::mapped_type>;
 
+    template<class T>
+    concept Formattable = requires
+    {
+        fmt::formatter<T>{};
+    };
+
     template<class F, class R, class... T>
     concept Callable = requires(F const& f, T... t)
     {
@@ -514,6 +520,12 @@ namespace bustache
         }
     };
 
+    template<>
+    struct impl_print<bool>
+    {
+        static BUSTACHE_API void print(bool self, output_handler os, char const* spec);
+    };
+
     template<Arithmetic T>
     struct impl_model<T>
     {
@@ -544,7 +556,16 @@ namespace bustache
         }
     };
 
-    template<class T> requires requires {fmt::formatter<T>{};}
+    template<>
+    struct impl_print<std::string_view>
+    {
+        static BUSTACHE_API void print(std::string_view self, output_handler os, char const* spec);
+    };
+
+    template<String T>
+    struct impl_print<T> : impl_print<std::string_view> {};
+
+    template<Formattable T> requires (!String<T>)
     struct impl_print<T>
     {
         static void print(T const& self, output_handler os, char const* spec)

@@ -469,4 +469,37 @@ namespace bustache::detail
         for (auto const content : doc.contents)
             doc.ctx.visit(visitor, content);
     }
+
+    template<class T>
+    void print_fmt(T self, output_handler os, char const* spec)
+    {
+        fmt::formatter<T> fmt;
+        {
+            fmt::format_parse_context ctx{spec};
+            fmt.parse(ctx);
+        }
+        fmt::memory_buffer buf;
+        fmt::format_context ctx{fmt::format_context::iterator(buf), {}};
+        fmt.format(self, ctx);
+        os(buf.data(), buf.size());
+    }
+}
+
+namespace bustache
+{
+    void impl_print<std::string_view>::print(std::string_view self, output_handler os, char const* spec)
+    {
+        if (spec)
+            detail::print_fmt(self, os, spec);
+        else
+            os(self.data(), self.size());
+    }
+
+    void impl_print<bool>::print(bool self, output_handler os, char const* spec)
+    {
+        if (spec)
+            detail::print_fmt(self, os, spec);
+        else
+            self ? os("true", 4) : os("false", 5);
+    }
 }
