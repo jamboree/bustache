@@ -152,22 +152,21 @@ namespace bustache::detail
             auto const ke = ki + key.size();
             if (ki == ke)
                 return visit(nullptr, subkey{});
-            struct on_value
-            {
-                Visit const& visit;
-                subkey sub;
-                void operator()(value_ptr val) const
-                {
-                    visit(val, sub);
-                };
-            };
             if (*ki == '.')
-                return on_value{visit, subkey{++ki, ke}}(cursor);
+            {
+                subkey sub{ki, ke};
+                if (++ki == ke)
+                    sub.i == ki;
+                return visit(cursor, sub);
+            }
             // Unqualified.
             auto const k0 = ki;
             while (ki != ke && *ki != '.') ++ki;
             key_cache.assign(k0, ki);
-            lookup(scope, key_cache, on_value{visit, subkey{ki, ke}});
+            lookup(scope, key_cache, [&visit, sub = subkey{ki, ke}](value_ptr val)
+            {
+                visit(val, sub);
+            });
         }
 
         void visit_within(ast::context const& new_ctx, ast::content_list const& contents)
