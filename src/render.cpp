@@ -12,20 +12,17 @@ namespace bustache::detail
 {
     struct object_ptr
     {
-        std::uintptr_t data;
-        void(*_get)(std::uintptr_t self, std::string const& key, value_handler visit);
+        void const* data;
+        void(*_get)(void const* self, std::string const& key, value_handler visit);
 
         static object_ptr from(value_ptr val)
         {
             if (val.vptr->kind == model::object)
                 return {val.data, static_cast<value_vtable const*>(val.vptr)->get};
-            return {0, object_trait::get_default};
+            return {nullptr, object_trait::get_default};
         }
 
-        explicit operator bool() const noexcept
-        {
-            return !!data;
-        }
+        constexpr explicit operator bool() const { return !!data; }
 
         void get(std::string const& key, value_handler visit) const
         {

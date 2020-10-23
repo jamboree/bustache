@@ -24,41 +24,10 @@ namespace bustache::detail
 {
     struct vtable_base;
 
-    template<class T, class Storage>
-    constexpr bool can_store_in_v =
-        sizeof(T) <= sizeof(Storage) &&
-        alignof(T) <= alignof(Storage);
-
     template<class T>
-    constexpr bool is_inplace_v =
-        std::is_trivially_default_constructible_v<T> &&
-        std::is_trivially_copyable_v<T> &&
-        can_store_in_v<T, std::uintptr_t>;
-
-    template<class T>
-    inline decltype(auto) deref_data(std::uintptr_t self)
+    inline T const& deref_data(void const* p)
     {
-        if constexpr (is_inplace_v<T>)
-        {
-            T ret;
-            std::memcpy(&ret, &self, sizeof(T));
-            return ret;
-        }
-        else
-            return *reinterpret_cast<T const*>(self);
-    }
-
-    template<class T>
-    inline std::uintptr_t encode_data(T const* p)
-    {
-        if constexpr (is_inplace_v<T>)
-        {
-            std::uintptr_t ret;
-            std::memcpy(&ret, p, sizeof(T));
-            return ret;
-        }
-        else
-            return reinterpret_cast<std::uintptr_t>(p);
+        return *static_cast<T const*>(p);
     }
 
     template<class T>
@@ -115,10 +84,10 @@ namespace bustache::detail
         fn_base() noexcept : _data(), _call() {}
 
         template<class F>
-        fn_base(F const& f) noexcept : _data(encode_data(&f)), _call(call<F>) {}
+        fn_base(F const& f) noexcept : _data(&f), _call(call<F>) {}
 
         template<class F>
-        fn_base(F* f) noexcept : _data(reinterpret_cast<std::uintptr_t>(f)), _call(call<F*>) {}
+        fn_base(F* f) noexcept : _data(f), _call(call_fp<F>) {}
 
         R operator()(T... t) const
         {
@@ -126,13 +95,19 @@ namespace bustache::detail
         }
 
         template<class F>
-        static R call(std::uintptr_t f, T&&... t)
+        static R call(void const* f, T&&... t)
         {
             return deref_data<F>(f)(std::forward<T>(t)...);
         }
 
-        std::uintptr_t _data;
-        R(*_call)(std::uintptr_t, T&&...);
+        template<class F>
+        static R call_fp(void const* f, T&&... t)
+        {
+            return static_cast<F*>(f)(std::forward<T>(t)...);
+        }
+
+        void const* _data;
+        R(*_call)(void const*, T&&...);
     };
 
     struct content_visitor;
@@ -286,7 +261,7 @@ namespace bustache
         template<Lazy_format F>
         value_ptr(F const* f) noexcept { f ? init_lazy_format(f) : reset(); }
 
-        explicit operator bool() const noexcept;
+        constexpr explicit operator bool() const { return !!data; }
 
         constexpr void reset();
 
@@ -309,7 +284,7 @@ namespace bustache
         friend struct detail::content_visitor;
         friend struct detail::object_ptr;
 
-        std::uintptr_t data;
+        void const* data;
         detail::vtable_base const* vptr;
     };
 
@@ -331,10 +306,10 @@ namespace bustache::detail
         template<class F>
         constexpr lazy_format_vtable(type<F>) : vtable_base{model::lazy_format}, call(call_impl<F>) {}
 
-        format(*call)(std::uintptr_t, ast::view const*);
+        format(*call)(void const*, ast::view const*);
 
         template<class F>
-        static format call_impl(std::uintptr_t self, ast::view const* view)
+        static format call_impl(void const* self, ast::view const* view)
         {
             return deref_data<F>(self)(view);
         }
@@ -348,10 +323,10 @@ namespace bustache::detail
         template<class F>
         constexpr lazy_value_vtable(type<F>) : vtable_base{model::lazy_value}, call(call_impl<F>) {}
 
-        void(*call)(std::uintptr_t, ast::view const*, value_handler visit);
+        void(*call)(void const*, ast::view const*, value_handler visit);
 
         template<class F>
-        static void call_impl(std::uintptr_t self, ast::view const* view, value_handler visit)
+        static void call_impl(void const* self, ast::view const* view, value_handler visit)
         {
             auto const& val = deref_data<F>(self)(view);
             visit(&val);
@@ -370,16 +345,16 @@ namespace bustache::detail
         template<class T> requires requires{impl_test<T>{};}
         constexpr test_trait(type<T>) : test(test_impl<T>) {}
 
-        bool(*test)(std::uintptr_t self);
+        bool(*test)(void const* self);
 
         template<bool Value>
-        static bool test_default(std::uintptr_t)
+        static bool test_default(void const*)
         {
             return Value;
         }
 
         template<class T>
-        static bool test_impl(std::uintptr_t self)
+        static bool test_impl(void const* self)
         {
             return impl_test<T>::test(deref_data<T>(self));
         }
@@ -392,12 +367,12 @@ namespace bustache::detail
         template<class T> requires requires{impl_print<T>{};}
         constexpr print_trait(type<T>) : print(print_impl<T>) {}
 
-        void(*print)(std::uintptr_t self, output_handler os, char const* spec);
+        void(*print)(void const* self, output_handler os, char const* spec);
 
-        static void print_default(std::uintptr_t, output_handler, char const*) {}
+        static void print_default(void const*, output_handler, char const*) {}
 
         template<class T>
-        static void print_impl(std::uintptr_t self, output_handler os, char const* spec)
+        static void print_impl(void const* self, output_handler os, char const* spec)
         {
             return impl_print<T>::print(deref_data<T>(self), os, spec);
         }
@@ -410,15 +385,15 @@ namespace bustache::detail
         template<class T> requires requires{impl_object<T>{};}
         constexpr object_trait(type<T>) : get(get_impl<T>) {}
 
-        void(*get)(std::uintptr_t self, std::string const& key, value_handler visit);
+        void(*get)(void const* self, std::string const& key, value_handler visit);
 
-        static void get_default(std::uintptr_t, std::string const&, value_handler visit)
+        static void get_default(void const*, std::string const&, value_handler visit)
         {
             visit(nullptr);
         }
 
         template<class T>
-        static void get_impl(std::uintptr_t self, std::string const& key, value_handler visit)
+        static void get_impl(void const* self, std::string const& key, value_handler visit)
         {
             return impl_object<T>::get(deref_data<T>(self), key, visit);
         }
@@ -431,10 +406,10 @@ namespace bustache::detail
         template<class T> requires requires{impl_list<T>{};}
         constexpr list_trait(type<T>) : iterate(iterate_impl<T>) {}
 
-        void(*iterate)(std::uintptr_t self, value_handler visit);
+        void(*iterate)(void const* self, value_handler visit);
 
         template<class T>
-        static void iterate_impl(std::uintptr_t self, value_handler visit)
+        static void iterate_impl(void const* self, value_handler visit)
         {
             return impl_list<T>::iterate(deref_data<T>(self), visit);
         }
@@ -472,14 +447,9 @@ namespace bustache::detail
 
 namespace bustache
 {
-    inline value_ptr::operator bool() const noexcept
-    {
-        return vptr->kind != model::null;
-    }
-
     constexpr void value_ptr::reset()
     {
-        data = 0;
+        data = nullptr;
         vptr = &detail::value_vt<void>;
     }
 
@@ -487,21 +457,21 @@ namespace bustache
     inline void value_ptr::init_model(T const* p) noexcept
     {
         static_assert(sizeof(detail::check_model<impl_model<T>::kind, T>));
-        data = detail::encode_data(p);
+        data = p;
         vptr = &detail::value_vt<T>;
     }
 
     template<class F>
     inline void value_ptr::init_lazy_format(F const* f) noexcept
     {
-        data = detail::encode_data(f);
+        data = f;
         vptr = &detail::lazy_format_vt<F>;
     }
 
     template<class F>
     inline void value_ptr::init_lazy_value(F const* f) noexcept
     {
-        data = detail::encode_data(f);
+        data = f;
         vptr = &detail::lazy_value_vt<F>;
     }
 
