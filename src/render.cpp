@@ -60,23 +60,30 @@ namespace bustache::detail
         visit(nullptr);
     }
 
+    struct subkey
+    {
+        char const* i;
+        char const* const e;
+
+        constexpr explicit operator bool() const { return i != e; }
+    };
+
     struct nested_resolver
     {
         using iter = char const*;
-        iter ki;
-        iter const ke;
+        subkey sub;
         std::string& key_cache;
         value_handler handle;
         bool done;
 
         void next(object_ptr obj)
         {
-            auto const k0 = ++ki;
-            while (ki != ke)
+            auto const k0 = ++sub.i;
+            while (sub)
             {
-                if (*ki == '.')
+                if (*sub.i == '.')
                 {
-                    key_cache.assign(k0, ki);
+                    key_cache.assign(k0, sub.i);
                     return obj.get(key_cache, [this](value_ptr val)
                     {
                         if (auto const obj = object_ptr::from(val))
@@ -84,9 +91,9 @@ namespace bustache::detail
                     });
                 }
                 else
-                    ++ki;
+                    ++sub.i;
             }
-            key_cache.assign(k0, ki);
+            key_cache.assign(k0, sub.i);
             obj.get(key_cache, [this](value_ptr val)
             {
                 if (val)
@@ -147,35 +154,23 @@ namespace bustache::detail
             auto ki = key.data();
             auto const ke = ki + key.size();
             if (ki == ke)
-                return visit(nullptr, nullptr);
+                return visit(nullptr, subkey{});
             struct on_value
             {
                 Visit const& visit;
-                char const* sub;
-                on_value(Visit const& visit, char const* ki, char const* ke) noexcept
-                    : visit(visit), sub(ki == ke ? nullptr : ki)
-                {}
+                subkey sub;
                 void operator()(value_ptr val) const
                 {
                     visit(val, sub);
                 };
             };
             if (*ki == '.')
-            {
-                if (++ki == ke)
-                    return visit(cursor, nullptr);
-                auto const k0 = ki;
-                while (*ki != '.' && ++ki != ke);
-                key_cache.assign(k0, ki);
-                scope->data.get(key_cache, on_value(visit, ki, ke));
-            }
-            else
-            {
-                auto const k0 = ki;
-                while (ki != ke && *ki != '.') ++ki;
-                key_cache.assign(k0, ki);
-                lookup(scope, key_cache, on_value(visit, ki, ke));
-            }
+                return on_value{visit, subkey{++ki, ke}}(cursor);
+            // Unqualified.
+            auto const k0 = ki;
+            while (ki != ke && *ki != '.') ++ki;
+            key_cache.assign(k0, ki);
+            lookup(scope, key_cache, on_value{visit, subkey{ki, ke}});
         }
 
         void visit_within(ast::context const& new_ctx, ast::content_list const& contents)
@@ -396,13 +391,13 @@ namespace bustache::detail
 
     void content_visitor::resolve_and_handle(std::string_view key, unresolved_handler unresolved, value_handler handle)
     {
-        resolve(key, [&](value_ptr val, char const* sub)
+        resolve(key, [=, this](value_ptr val, subkey sub)
         {
             if (sub)
             {
                 if (auto const obj = object_ptr::from(val))
                 {
-                    nested_resolver nested{sub, key.data() + key.size(), key_cache, handle};
+                    nested_resolver nested{sub, key_cache, handle};
                     if (nested.next(obj), nested.done)
                         return;
                 }
