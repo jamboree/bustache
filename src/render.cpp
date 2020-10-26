@@ -156,7 +156,7 @@ namespace bustache::detail
             {
                 subkey sub{ki, ke};
                 if (++ki == ke)
-                    sub.i == ki;
+                    sub.i = ki;
                 return visit(cursor, sub);
             }
             // Unqualified.
@@ -195,20 +195,27 @@ namespace bustache::detail
                 ctx->visit(*this, content);
         }
 
-        void expand_on_object(ast::content_list const& contents, object_ptr data)
+        void expand_on_object(ast::content_list const& contents, value_ptr val)
         {
+            auto const old_cursor = cursor;
+            object_ptr data{val.data, static_cast<value_vtable const*>(val.vptr)->get};
             content_scope curr{scope, data};
+            cursor = val;
             scope = &curr;
             expand(contents);
             scope = curr.parent;
+            cursor = old_cursor;
         }
 
         void expand_on_value(ast::content_list const& contents, value_ptr val)
         {
-            if (auto const obj = object_ptr::from(val))
-                expand_on_object(contents, obj);
+            if (val.vptr->kind == model::object)
+                expand_on_object(contents, val);
             else
+            {
+                cursor = val;
                 expand(contents);
+            }
         }
 
         bool expand_section(ast::type tag, ast::content_list const& contents, value_ptr val);
@@ -333,21 +340,22 @@ namespace bustache::detail
         case model::atom:
             return static_cast<value_vtable const*>(val.vptr)->test(val.data) ^ inverted;
         case model::object:
-            expand_on_object(contents, {val.data, static_cast<value_vtable const*>(val.vptr)->get});
+            expand_on_object(contents, val);
             return false;
         case model::list:
         {
             auto const vt = static_cast<value_vtable const*>(val.vptr);
+            auto const old_cursor = cursor;
             if (!vt->iterate)
                 expand_on_value(contents, val);
             else
             {
                 vt->iterate(val.data, [&](value_ptr val)
                 {
-                    cursor = val;
                     expand_on_value(contents, val);
                 });
             }
+            cursor = old_cursor;
             return false;
         }
         case model::lazy_value:
@@ -375,14 +383,11 @@ namespace bustache::detail
 
     void content_visitor::handle_section(ast::type tag, ast::block const& block, value_ptr val)
     {
-        auto const old_cursor = cursor;
-        cursor = val;
         if (expand_section(tag, block.contents, val))
         {
             for (auto const content : block.contents)
                 ctx->visit(*this, content);
         }
-        cursor = old_cursor;
     }
 
     void content_visitor::resolve_and_handle(std::string_view key, unresolved_handler unresolved, value_handler handle)
