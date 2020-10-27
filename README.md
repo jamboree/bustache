@@ -24,6 +24,9 @@ C++20 implementation of [{{ mustache }}](http://mustache.github.io/), compliant 
 ## Other Features
 * Customizable behavior on unresolved variable
 * Trait-based user-defined model
+* Variable [format string](https://fmt.dev/latest/syntax.html), e.g. `{{var:*^10}}`.
+* List expansion section, e.g. `{{*map}}({{key}} -> {{value}}){{/map}}`.
+* Filter section, e.g. `{{?filter}}...{{/filter}}`.
 
 ## Basics
 {{ mustache }} is a template language for text-replacing.
@@ -268,22 +271,22 @@ You can also use `what()` for a descriptive text.
 Compare with 2 other libs - [mstch](https://github.com/no1msd/mstch/tree/0fde1cf94c26ede7fa267f4b64c0efe5da81a77a) and [Kainjow.Mustache](https://github.com/kainjow/Mustache/tree/a7eebc9bec92676c1931eddfff7637d7e819f2d2).
 See [benchmark.cpp](test/benchmark.cpp). 
 
-Sample run (VS2019 16.7.2, boost 1.73.0, 64-bit release build):
+Sample run (VS2019 16.7.6, boost 1.73.0, 64-bit release build):
 ```
-08/27/20 15:41:51
-Running F:\code\Notation\x64\Release\Notation.exe
+2020-10-27T16:10:49+08:00
+Running F:\code\bus\x64\Release\bus.exe
 Run on (8 X 3600 MHz CPU s)
 CPU Caches:
-  L1 Data 32K (x8)
-  L1 Instruction 32K (x8)
-  L2 Unified 262K (x8)
-  L3 Unified 12582K (x1)
+  L1 Data 32 KiB (x8)
+  L1 Instruction 32 KiB (x8)
+  L2 Unified 256 KiB (x8)
+  L3 Unified 12288 KiB (x1)
 ---------------------------------------------------------
 Benchmark               Time             CPU   Iterations
 ---------------------------------------------------------
-bustache_usage       5193 ns         5313 ns       100000
-mstch_usage         72931 ns        73242 ns         8960
-kainjow_usage       26192 ns        26088 ns        26353
+bustache_usage       4675 ns         4708 ns       149333
+mstch_usage         80919 ns        81961 ns         8960
+kainjow_usage       23993 ns        24065 ns        29867
 ```
 Lower is better.
 
