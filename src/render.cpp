@@ -1,5 +1,5 @@
 /*//////////////////////////////////////////////////////////////////////////////
-    Copyright (c) 2016-2020 Jamboree
+    Copyright (c) 2016-2021 Jamboree
 
     Distributed under the Boost Software License, Version 1.0. (See accompanying
     file LICENSE_1_0.txt or copy at http://www.boost.org/LICENSE_1_0.txt)
@@ -464,20 +464,6 @@ namespace bustache::detail
         content_visitor visitor{doc.ctx, scope, data, raw_os, escape_os, context, f};
         for (auto const content : doc.contents)
             doc.ctx.visit(visitor, content);
-    }
-
-    template<class T>
-    void print_fmt(T self, output_handler os, char const* spec)
-    {
-        fmt::formatter<T> fmt;
-        {
-            fmt::format_parse_context ctx{spec};
-            fmt.parse(ctx);
-        }
-        fmt::memory_buffer buf;
-        fmt::format_context ctx{fmt::format_context::iterator(buf), {}};
-        fmt.format(self, ctx);
-        os(buf.data(), buf.size());
     }
 }
 

@@ -1,5 +1,5 @@
 /*//////////////////////////////////////////////////////////////////////////////
-    Copyright (c) 2014-2020 Jamboree
+    Copyright (c) 2014-2021 Jamboree
 
     Distributed under the Boost Software License, Version 1.0. (See accompanying
     file LICENSE_1_0.txt or copy at http://www.boost.org/LICENSE_1_0.txt)
@@ -329,6 +329,23 @@ namespace bustache::detail
     };
 
     template<class T>
+    void print_fmt(T const& self, output_handler os, char const* spec)
+    {
+        using OutIter = std::back_insert_iterator<output_buffer>;
+        using FmtCtx = fmt::basic_format_context<OutIter, char>;
+        fmt::formatter<T> fmt;
+        if (spec)
+        {
+            fmt::format_parse_context ctx{spec};
+            fmt.parse(ctx);
+        }
+        output_buffer buf(os);
+        FmtCtx ctx{OutIter(buf), fmt::make_format_args<FmtCtx>()};
+        fmt.format(self, ctx);
+        buf.flush();
+    }
+
+    template<class T>
     struct type {};
 
     struct vtable_base
@@ -575,18 +592,7 @@ namespace bustache
     {
         static void print(T const& self, output_handler os, char const* spec)
         {
-            using OutIter = std::back_insert_iterator<detail::output_buffer>;
-            using FmtCtx = detail::fmt::basic_format_context<OutIter, char>;
-            detail::fmt::formatter<T> fmt;
-            if (spec)
-            {
-                detail::fmt::format_parse_context ctx{spec};
-                fmt.parse(ctx);
-            }
-            detail::output_buffer buf(os);
-            FmtCtx ctx{OutIter(buf), detail::fmt::make_format_args<FmtCtx>()};
-            fmt.format(self, ctx);
-            buf.flush();
+            detail::print_fmt(self, os, spec);
         }
     };
 
