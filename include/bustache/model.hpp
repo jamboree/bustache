@@ -8,11 +8,18 @@
 #define BUSTACHE_MODEL_HPP_INCLUDED
 
 #include <bustache/format.hpp>
+#include <version> 
 #include <vector>
 #include <cstring>
 #include <concepts>
 #include <functional>
+#ifdef BUSTACHE_USE_FMT
 #include <fmt/format.h>
+#elif defined(__cpp_lib_format)
+#include <format>
+#else
+#error "format is not supported"
+#endif
 
 namespace std
 {
@@ -22,6 +29,11 @@ namespace std
 
 namespace bustache::detail
 {
+#ifdef BUSTACHE_USE_FMT
+    namespace fmt = ::fmt;
+#else
+    namespace fmt = ::std;
+#endif
     struct vtable_base;
 
     template<class T>
@@ -198,7 +210,7 @@ namespace bustache
     template<class T>
     concept Formattable = requires
     {
-        fmt::formatter<T>{};
+        std::formatter<T>{};
     };
 
     template<class F, class R, class... T>
@@ -293,6 +305,29 @@ namespace bustache
 
 namespace bustache::detail
 {
+    struct output_buffer
+    {
+        using value_type = char;
+
+        explicit output_buffer(output_handler os) : os(os) {}
+
+        void push_back(char c)
+        {
+            if (count == sizeof(buf)) [[unlikely]]
+            {
+                flush();
+                count = 0;
+            }
+            buf[count++] = c;
+        }
+
+        void flush() { os(buf, count); }
+
+        std::size_t count = 0;
+        char buf[1024];
+        output_handler os;
+    };
+
     template<class T>
     struct type {};
 
@@ -540,16 +575,18 @@ namespace bustache
     {
         static void print(T const& self, output_handler os, char const* spec)
         {
-            fmt::formatter<T> fmt;
+            using OutIter = std::back_insert_iterator<detail::output_buffer>;
+            using FmtCtx = detail::fmt::basic_format_context<OutIter, char>;
+            detail::fmt::formatter<T> fmt;
             if (spec)
             {
-                fmt::format_parse_context ctx{spec};
+                detail::fmt::format_parse_context ctx{spec};
                 fmt.parse(ctx);
             }
-            fmt::memory_buffer buf;
-            fmt::format_context ctx{fmt::format_context::iterator(buf), {}};
+            detail::output_buffer buf(os);
+            FmtCtx ctx{OutIter(buf), detail::fmt::make_format_args<FmtCtx>()};
             fmt.format(self, ctx);
-            os(buf.data(), buf.size());
+            buf.flush();
         }
     };
 

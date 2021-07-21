@@ -3,6 +3,7 @@ cmake_minimum_required(VERSION 3.15)
 project(bustache VERSION 0.1.0 LANGUAGES CXX)
 
 option(BUSTACHE_ENABLE_TESTING "Enable testing of the bustache library." OFF)
+option(BUSTACHE_USE_FMT "Use fmtlib." OFF)
 
 message(STATUS "Started CMake for ${PROJECT_NAME} v${PROJECT_VERSION}...\n")
 
@@ -14,9 +15,9 @@ add_library(
 
 target_compile_features(${PROJECT_NAME} PUBLIC cxx_std_20)
 
-if (BUILD_SHARED_LIBS)
+if(BUILD_SHARED_LIBS)
   target_compile_definitions(${PROJECT_NAME} PRIVATE BUSTACHE_EXPORT INTERFACE BUSTACHE_SHARED)
-endif ()
+endif()
 
 # Allow usage of header files in the `src` directory, but only for utilities
 target_include_directories(
@@ -39,12 +40,14 @@ target_include_directories(
 #    ${PROJECT_NAME}_PROJECT_OPTIONS        
 #    ${PROJECT_NAME}_PROJECT_WARNINGS        
 #)
-find_package(fmt REQUIRED)
-target_link_libraries(
-  ${PROJECT_NAME}
-  PUBLIC
-      fmt::fmt
-)
+if(BUSTACHE_USE_FMT)
+  find_package(fmt REQUIRED)
+  target_link_libraries(
+    ${PROJECT_NAME}
+    PUBLIC
+        fmt::fmt
+  )
+endif()
 
 add_library(${PROJECT_NAME}::${PROJECT_NAME} ALIAS ${PROJECT_NAME})
 
