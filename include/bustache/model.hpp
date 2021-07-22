@@ -11,6 +11,7 @@
 #include <version> 
 #include <vector>
 #include <cstring>
+#include <ranges>
 #include <concepts>
 #include <functional>
 #ifdef BUSTACHE_USE_FMT
@@ -41,51 +42,6 @@ namespace bustache::detail
     {
         return *static_cast<T const*>(p);
     }
-
-    template<class T>
-    struct range_value;
-
-    template<class T, std::size_t N>
-    struct range_value<T[N]>
-    {
-        using type = T;
-    };
-
-    template<class T> requires requires { typename T::value_type; }
-    struct range_value<T>
-    {
-        using type = typename T::value_type;
-    };
-
-    template<class T>
-    using range_value_t = typename range_value<T>::type;
-
-    namespace barrier
-    {
-        using std::begin;
-        using std::end;
-
-        struct begin_fn
-        {
-            template<class T>
-            auto operator()(T const& seq) const -> decltype(begin(seq))
-            {
-                return begin(seq);
-            }
-        };
-
-        struct end_fn
-        {
-            template<class T>
-            auto operator()(T const& seq) const -> decltype(end(seq))
-            {
-                return end(seq);
-            }
-        };
-    }
-
-    constexpr barrier::begin_fn begin{};
-    constexpr barrier::end_fn end{};
 
     template<class>
     struct fn_base;
@@ -192,14 +148,12 @@ namespace bustache
     concept Arithmetic = std::is_arithmetic_v<T>;
 
     template<class T>
-    concept String = std::convertible_to<T, std::string_view> && !std::same_as<T, std::nullptr_t>;
+    concept String =
+        std::convertible_to<T, std::string_view> &&
+        std::same_as<std::ranges::range_value_t<T>, char>;
 
     template<class T>
-    concept ValueRange = requires(T const& t)
-    {
-        detail::begin(t);
-        detail::end(t);
-    } && Value<detail::range_value_t<T>>;
+    concept ValueRange = Value<std::ranges::range_value_t<T>>;
 
     template<class T>
     concept StrValueMap = requires(T const& t, std::string const& key)
