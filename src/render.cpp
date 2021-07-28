@@ -22,6 +22,13 @@ namespace bustache::detail
             return {nullptr, object_trait::get_default};
         }
 
+        static object_ptr from_nested(value_ptr val)
+        {
+            if (val.vptr->kind < model::lazy_value)
+                return {val.data, static_cast<value_vtable const*>(val.vptr)->get};
+            return {nullptr, object_trait::get_default};
+        }
+
         constexpr explicit operator bool() const { return !!data; }
 
         void get(std::string const& key, value_handler visit) const
@@ -396,7 +403,7 @@ namespace bustache::detail
         {
             if (sub)
             {
-                if (auto const obj = object_ptr::from(val))
+                if (auto const obj = object_ptr::from_nested(val))
                 {
                     nested_resolver nested{sub, key_cache, handle};
                     if (nested.next(obj), nested.done)
