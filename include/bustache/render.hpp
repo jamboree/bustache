@@ -160,15 +160,15 @@ namespace bustache
         return detail::get_escape(&manip);
     }
 
-    template<class Sink, Value T, class Escape = no_escape_t>
+    template<class Sink, class Escape = no_escape_t>
     inline void render
     (
-        Sink const& os, format const& fmt, T const& data,
+        Sink const& os, format const& fmt, value_ref data,
         context_handler context = no_context_t{}, Escape escape = {},
         unresolved_handler f = nullptr
     )
     {
-        detail::render(os, escape(os), fmt, &data, context, f);
+        detail::render(os, escape(os), fmt, data.get_ptr(), context, f);
     }
 }
 

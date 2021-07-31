@@ -255,6 +255,17 @@ namespace bustache
     };
 
     using value_handler = fn_ref<void(value_ptr)>;
+
+    struct value_ref
+    {
+        template<Value T>
+        value_ref(T const& ref) noexcept : ptr(&ref) {}
+
+        value_ptr get_ptr() const noexcept { return ptr; }
+
+    private:
+        value_ptr ptr;
+    };
 }
 
 namespace bustache::detail
