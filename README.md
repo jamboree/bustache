@@ -97,7 +97,7 @@ struct bustache::impl_list<T>
 See [udt.cpp](test/udt.cpp) for more examples.
 
 #### Compatible Trait
-Some types cannot be categorized into a single model (e.g. `varaint`), to make it compatible, you can implement the trait:
+Some types cannot be categorized into a single model (e.g. `variant`), to make it compatible, you can implement the trait:
 ```c++
 template<>
 struct bustache::impl_compatible<T>

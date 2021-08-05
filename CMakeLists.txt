@@ -47,6 +47,7 @@ if(BUSTACHE_USE_FMT)
     PUBLIC
         fmt::fmt
   )
+  add_compile_definitions(BUSTACHE_USE_FMT)
 endif()
 
 add_library(${PROJECT_NAME}::${PROJECT_NAME} ALIAS ${PROJECT_NAME})
