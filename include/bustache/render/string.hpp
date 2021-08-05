@@ -1,5 +1,5 @@
 /*//////////////////////////////////////////////////////////////////////////////
-    Copyright (c) 2016-2020 Jamboree
+    Copyright (c) 2016-2021 Jamboree
 
     Distributed under the Boost Software License, Version 1.0. (See accompanying
     file LICENSE_1_0.txt or copy at http://www.boost.org/LICENSE_1_0.txt)
@@ -10,7 +10,7 @@
 #include <string>
 #include <bustache/render.hpp>
 
-namespace bustache { namespace detail
+namespace bustache::detail
 {
     template<class String>
     struct string_sink
@@ -22,15 +22,15 @@ namespace bustache { namespace detail
             out.insert(out.end(), data, data + bytes);
         }
     };
-}}
+}
 
 namespace bustache
 {
-    template<class String, Value T, class Escape = no_escape_t>
+    template<class String, class Escape = no_escape_t>
     inline void render_string
     (
         String& out, format const& fmt,
-        T const& data, context_handler context = no_context_t{},
+        value_ref data, context_handler context = no_context_t{},
         Escape escape = {}, unresolved_handler f = nullptr
     )
     {

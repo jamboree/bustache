@@ -1,5 +1,5 @@
 /*//////////////////////////////////////////////////////////////////////////////
-    Copyright (c) 2016-2020 Jamboree
+    Copyright (c) 2016-2021 Jamboree
 
     Distributed under the Boost Software License, Version 1.0. (See accompanying
     file LICENSE_1_0.txt or copy at http://www.boost.org/LICENSE_1_0.txt)
@@ -10,7 +10,7 @@
 #include <iostream>
 #include <bustache/render.hpp>
 
-namespace bustache { namespace detail
+namespace bustache::detail
 {
     template<class CharT, class Traits>
     struct ostream_sink
@@ -22,15 +22,15 @@ namespace bustache { namespace detail
             out.write(data, bytes);
         }
     };
-}}
+}
 
 namespace bustache
 {
-    template<class CharT, class Traits, Value T, class Escape = no_escape_t>
+    template<class CharT, class Traits, class Escape = no_escape_t>
     inline void render_ostream
     (
         std::basic_ostream<CharT, Traits>& out, format const& fmt,
-        T const& data, context_handler context = no_context_t{},
+        value_ref data, context_handler context = no_context_t{},
         Escape escape = {}, unresolved_handler f = nullptr
     )
     {
