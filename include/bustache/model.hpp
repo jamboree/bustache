@@ -164,7 +164,7 @@ namespace bustache
     template<class T>
     concept Formattable = requires
     {
-        fmt::formatter<T>{};
+        detail::fmt::formatter<T>{};
     };
 
     template<class F, class R, class... T>
