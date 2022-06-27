@@ -1,4 +1,9 @@
 @PACKAGE_INIT@
 
+set(BUSTACHE_USE_FMT @BUSTACHE_USE_FMT@)
+if(BUSTACHE_USE_FMT)
+  include(CMakeFindDependencyMacro)
+  find_dependency(fmt QUIET REQUIRED)
+endif()
+
 include("${CMAKE_CURRENT_LIST_DIR}/@PROJECT_NAME@-targets.cmake")
-check_required_components(fmt)
