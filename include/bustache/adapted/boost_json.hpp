@@ -30,19 +30,19 @@ namespace bustache
             case boost::json::kind::null:
                 break;
             case boost::json::kind::bool_:
-                return value_ptr(&ref.as_bool());
+                return value_ptr(&ref.get_bool());
             case boost::json::kind::int64:
-                return value_ptr(&ref.as_int64());
+                return value_ptr(&ref.get_int64());
             case boost::json::kind::uint64:
-                return value_ptr(&ref.as_uint64());
+                return value_ptr(&ref.get_uint64());
             case boost::json::kind::double_:
-                return value_ptr(&ref.as_double());
+                return value_ptr(&ref.get_double());
             case boost::json::kind::string:
-                return value_ptr(&ref.as_string());
+                return value_ptr(&ref.get_string());
             case boost::json::kind::array:
-                return value_ptr(&ref.as_array());
+                return value_ptr(&ref.get_array());
             case boost::json::kind::object:
-                return value_ptr(&ref.as_object());
+                return value_ptr(&ref.get_object());
             }
             return value_ptr();
         }
