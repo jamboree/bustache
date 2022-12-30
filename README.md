@@ -50,6 +50,10 @@ Most STL-compatible containers will work out-of-the-box, including the ones that
 #### Header
 `#include <bustache/model.hpp>`
 
+#### Adapted Model
+* `#include <bustache/adapted/boost_describe.hpp>` - [Boost.Describe](https://boost.org/libs/describe)
+* `#include <bustache/adapted/boost_json.hpp>` - [Boost.JSON](https://boost.org/libs/json)
+
 #### Model Traits
 To meet the `Model` concept, you have to implement the traits:
 ```c++
@@ -294,7 +298,7 @@ Lower is better.
 
 ## License
 
-    Copyright (c) 2014-2021 Jamboree
+    Copyright (c) 2014-2022 Jamboree
 
     Distributed under the Boost Software License, Version 1.0. (See accompanying
     file LICENSE_1_0.txt or copy at http://www.boost.org/LICENSE_1_0.txt)
