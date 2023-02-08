@@ -6,7 +6,7 @@ function(add_catch_test name)
         ${name}.cpp
     )
     target_link_libraries(${TEST_TARGET}
-        ${PROJECT_NAME} Catch2::Catch2
+        ${PROJECT_NAME} Catch2::Catch2 Catch2::Catch2WithMain
     )
     target_compile_features(${TEST_TARGET} PUBLIC cxx_std_20)
     add_test(${TEST_TARGET} ${TEST_TARGET})

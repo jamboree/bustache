@@ -8,7 +8,7 @@ C++20 implementation of [{{ mustache }}](http://mustache.github.io/), compliant 
 
 ### Optional Dependencies
 * [Google.Benchmark](https://github.com/google/benchmark) - for benchmark
-* [Catch](https://github.com/philsquared/Catch) - for test
+* [Catch2](https://github.com/catchorg/Catch2) - for test
 
 ## Supported Features
 * Variables
