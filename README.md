@@ -19,7 +19,8 @@ C++20 implementation of [{{ mustache }}](http://mustache.github.io/), compliant 
 * Set Delimiter
 * Lambdas
 * HTML escaping *(configurable)*
-* Template inheritance *(extension)*
+* [Inheritance](https://github.com/mustache/spec/blob/master/specs/~inheritance.yml) *(extension)*
+* [Dynamic Names](https://github.com/mustache/spec/blob/master/specs/~dynamic-names.yml) *(extension)*
 
 ## Other Features
 * Customizable behavior on unresolved variable
@@ -298,7 +299,7 @@ Lower is better.
 
 ## License
 
-    Copyright (c) 2014-2022 Jamboree
+    Copyright (c) 2014-2023 Jamboree
 
     Distributed under the Boost Software License, Version 1.0. (See accompanying
     file LICENSE_1_0.txt or copy at http://www.boost.org/LICENSE_1_0.txt)

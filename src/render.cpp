@@ -1,5 +1,5 @@
 /*//////////////////////////////////////////////////////////////////////////////
-    Copyright (c) 2016-2021 Jamboree
+    Copyright (c) 2016-2023 Jamboree
 
     Distributed under the Boost Software License, Version 1.0. (See accompanying
     file LICENSE_1_0.txt or copy at http://www.boost.org/LICENSE_1_0.txt)
@@ -192,7 +192,7 @@ namespace bustache::detail
 
         override_find_result find_override(std::string const& key) const;
 
-        void print_value(output_handler os, value_ptr val, char const* sepc);
+        void print_value(output_handler os, value_ptr val, char const* sepc, bool interpolation);
 
         void handle_variable(ast::type tag, value_ptr val, char const* sepc);
 
@@ -230,6 +230,25 @@ namespace bustache::detail
         void handle_section(ast::type tag, ast::block const& block, value_ptr val);
 
         void resolve_and_handle(std::string_view key, unresolved_handler unresolved, value_handler handle);
+
+        std::string const& deref_dyn_name(std::string const& key)
+        {
+            if (key.starts_with('*'))
+            {
+                std::string_view const s(key.data() + 1, key.size() - 1);
+                resolve_and_handle(s, nullptr, [this](value_ptr val)
+                {
+                    key_cache.clear();
+                    auto const os = [this](char const* data, std::size_t bytes)
+                    {
+                        key_cache.append(data, bytes);
+                    };
+                    print_value(os, val, nullptr, false);
+                });
+                return key_cache;
+            }
+            return key;
+        }
 
         void operator()(ast::type, ast::text const* text);
 
@@ -286,24 +305,26 @@ namespace bustache::detail
         return {};
     }
 
-    void content_visitor::print_value(output_handler os, value_ptr val, char const* sepc)
+    void content_visitor::print_value(output_handler os, value_ptr val, char const* sepc, bool interpolation)
     {
         switch (val.vptr->kind)
         {
         case model::lazy_value:
             static_cast<lazy_value_vtable const*>(val.vptr)->call(val.data, nullptr, [=, this](value_ptr val)
             {
-                print_value(os, val, sepc);
+                print_value(os, val, sepc, interpolation);
             });
             break;
         case model::lazy_format:
-        {
-            auto const fmt = static_cast<lazy_format_vtable const*>(val.vptr)->call(val.data, nullptr);
-            visit_within(fmt.doc());
+            if (interpolation)
+            {
+                auto const fmt = static_cast<lazy_format_vtable const*>(val.vptr)->call(val.data, nullptr);
+                visit_within(fmt.doc());
+            }
             break;
-        }
         default:
             static_cast<value_vtable const*>(val.vptr)->print(val.data, os, sepc);
+            break;
         }
     }
 
@@ -314,7 +335,7 @@ namespace bustache::detail
             raw_os(indent.data(), indent.size());
             needs_indent = false;
         }
-        print_value(tag == ast::type::var_raw ? raw_os : escape_os, val, sepc);
+        print_value(tag == ast::type::var_raw ? raw_os : escape_os, val, sepc, true);
     }
 
     bool content_visitor::expand_section(ast::type tag, ast::content_list const& contents, value_ptr val)
@@ -447,7 +468,7 @@ namespace bustache::detail
 
     void content_visitor::operator()(ast::type, ast::partial const* partial)
     {
-        if (auto const p = context(partial->key))
+        if (auto const p = context(deref_dyn_name(partial->key)))
         {
             auto const& doc = p->doc();
             if (doc.contents.empty())

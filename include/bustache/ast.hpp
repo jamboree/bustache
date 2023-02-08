@@ -1,5 +1,5 @@
 /*//////////////////////////////////////////////////////////////////////////////
-    Copyright (c) 2014-2020 Jamboree
+    Copyright (c) 2014-2023 Jamboree
 
     Distributed under the Boost Software License, Version 1.0. (See accompanying
     file LICENSE_1_0.txt or copy at http://www.boost.org/LICENSE_1_0.txt)
@@ -96,26 +96,7 @@ namespace bustache::ast
             return ret;
         }
 
-    private:
-        template<type K>
-        struct tag;
-
-        struct variable_tag;
-        struct block_tag;
-
     public:
-        template<type K>
-        typename tag<K>::type const* get_if(content c) const
-        {
-            return c.kind == K ? tag<K>::data(*this) + c.index : nullptr;
-        }
-
-        template<type K>
-        typename tag<K>::type* get_if(content c)
-        {
-            return c.kind == K ? tag<K>::data(*this) + c.index : nullptr;
-        }
-
         template<class F>
         auto visit(F&& f, content c) const -> decltype(auto)
         {
@@ -135,45 +116,6 @@ namespace bustache::ast
             case type::partial: return f(c.kind, partials.data() + c.index);
             }
         }
-    };
-
-    template<>
-    struct context::tag<type::text>
-    {
-        using type = text;
-        template<class Self>
-        static auto data(Self& self) { return self.texts.data(); }
-    };
-
-    struct context::variable_tag
-    {
-        using type = variable;
-        template<class Self>
-        static auto data(Self& self) { return self.variables.data(); }
-    };
-
-    template<> struct context::tag<type::var_escaped> : variable_tag {};
-    template<> struct context::tag<type::var_raw> : variable_tag {};
-
-    struct context::block_tag
-    {
-        using type = block;
-        template<class Self>
-        static auto data(Self& self) { return self.blocks.data(); }
-    };
-
-    template<> struct context::tag<type::section> : block_tag {};
-    template<> struct context::tag<type::inversion> : block_tag {};
-    template<> struct context::tag<type::filter> : block_tag {};
-    template<> struct context::tag<type::loop> : block_tag {};
-    template<> struct context::tag<type::inheritance> : block_tag {};
-
-    template<>
-    struct context::tag<type::partial>
-    {
-        using type = partial;
-        template<class Self>
-        static auto data(Self& self) { return self.partials.data(); }
     };
 
     struct document

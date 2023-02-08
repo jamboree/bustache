@@ -1,5 +1,5 @@
 /*//////////////////////////////////////////////////////////////////////////////
-    Copyright (c) 2014-2020 Jamboree
+    Copyright (c) 2014-2023 Jamboree
 
     Distributed under the Boost Software License, Version 1.0. (See accompanying
     file LICENSE_1_0.txt or copy at http://www.boost.org/LICENSE_1_0.txt)
@@ -72,7 +72,17 @@ namespace bustache::parser { namespace
         return true;
     }
 
-    unsigned expect_key(I b, I& i, I e, delim& d, std::string& attr, char sentinel)
+    void parse_dyn_sigil(I& i, I e, std::string& key)
+    {
+        skip(i, e);
+        if (i != e && *i == '*')
+        {
+            key = '*';
+            ++i;
+        }
+    }
+
+    unsigned expect_key(I b, I& i, I e, delim& d, std::string& key, char sentinel)
     {
         unsigned split = 0;
         skip(i, e);
@@ -86,7 +96,7 @@ namespace bustache::parser { namespace
                 {
                     if (split ? split + 1 == i1 - i0 : i0 == i1) [[unlikely]]
                         break;
-                    attr.assign(i0, i1);
+                    key.append(i0, i1);
                     return split;
                 }
             }
@@ -200,8 +210,11 @@ namespace bustache::parser { namespace
         {
             ast::content a;
             auto const end = parse_content(b, i0, i, e, d, pure, text, a, attr.key);
-            if (auto const p = ctx.get_if<ast::type::inheritance>(a))
-                attr.overriders.emplace(std::move(p->key), std::move(p->contents));
+            if (a.kind == ast::type::inheritance)
+            {
+                auto& block = ctx.blocks[a.index];
+                attr.overriders.emplace(std::move(block.key), std::move(block.contents));
+            }
             if (end)
                 break;
         }
@@ -317,7 +330,8 @@ namespace bustache::parser { namespace
         case '>':
         {
             ast::partial a;
-            expect_key(b, ++i, e, d, a.key, '\0');
+            parse_dyn_sigil(++i, e, a.key);
+            expect_key(b, i, e, d, a.key, '\0');
             attr = ctx.add(std::move(a));
             ret.check_standalone = pure;
             break;
@@ -336,7 +350,8 @@ namespace bustache::parser { namespace
         case '<':
         {
             ast::partial a;
-            ret.is_standalone = expect_inheritance(b, ++i, e, d, pure, a);
+            parse_dyn_sigil(++i, e, a.key);
+            ret.is_standalone = expect_inheritance(b, i, e, d, pure, a);
             attr = ctx.add(std::move(a));
             return ret;
         }
@@ -401,8 +416,11 @@ namespace bustache::parser { namespace
                     }
                     if (!tag.is_standalone)
                         text = std::string_view(i0, i2 - i0);
-                    else if (auto const partial = ctx.get_if<ast::type::partial>(attr))
-                        partial->indent.assign(i1, i2 - i1);
+                    else if (attr.kind == ast::type::partial)
+                    {
+                        auto& partial = ctx.partials[attr.index];
+                        partial.indent.assign(i1, i2 - i1);
+                    }
                     i0 = i;
                     return i == e || tag.is_end_section;
                 }
