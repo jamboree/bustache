@@ -5,6 +5,8 @@ C++20 implementation of [{{ mustache }}](http://mustache.github.io/), compliant 
 
 ### Dependencies
 * [fmt](https://github.com/fmtlib/fmt) (or C++20 `<format>`)
+> __Note__
+> This can be controlled by `BUSTACHE_USE_FMT`
 
 ### Optional Dependencies
 * [Google.Benchmark](https://github.com/google/benchmark) - for benchmark
@@ -25,9 +27,12 @@ C++20 implementation of [{{ mustache }}](http://mustache.github.io/), compliant 
 ## Other Features
 * Customizable behavior on unresolved variable
 * Trait-based user-defined model
-* Variable [format string](https://fmt.dev/latest/syntax.html), e.g. `{{var:*^10}}`.
-* List expansion section, e.g. `{{*map}}({{key}} -> {{value}}){{/map}}`.
-* Filter section, e.g. `{{?filter}}...{{/filter}}`.
+* Variable [format string](https://fmt.dev/latest/syntax.html), e.g. \
+  `{{var:*^10}}`.
+* List expansion section, e.g. \
+  `{{*map}}({{key}} -> {{value}}){{/map}}`.
+* Filter section, e.g. \
+  `{{?filter}}...{{/filter}}`.
 
 ## Basics
 {{ mustache }} is a template language for text-replacing.
@@ -52,8 +57,10 @@ Most STL-compatible containers will work out-of-the-box, including the ones that
 `#include <bustache/model.hpp>`
 
 #### Adapted Model
-* `#include <bustache/adapted/boost_describe.hpp>` - [Boost.Describe](https://boost.org/libs/describe)
-* `#include <bustache/adapted/boost_json.hpp>` - [Boost.JSON](https://boost.org/libs/json)
+* [Boost.Describe](https://boost.org/libs/describe) \
+  `#include <bustache/adapted/boost_describe.hpp>`
+* [Boost.JSON](https://boost.org/libs/json) \
+  `#include <bustache/adapted/boost_json.hpp>`
 
 #### Model Traits
 To meet the `Model` concept, you have to implement the traits:
