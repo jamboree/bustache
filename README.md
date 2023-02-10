@@ -5,8 +5,8 @@ C++20 implementation of [{{ mustache }}](http://mustache.github.io/), compliant 
 
 ### Dependencies
 * [fmt](https://github.com/fmtlib/fmt) (or C++20 `<format>`)
-> __Note__
-> This can be controlled by `BUSTACHE_USE_FMT`
+  > __Note__ \
+  > This can be controlled by `BUSTACHE_USE_FMT`
 
 ### Optional Dependencies
 * [Google.Benchmark](https://github.com/google/benchmark) - for benchmark
