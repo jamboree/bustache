@@ -20,10 +20,25 @@ namespace bustache::parser { namespace
         std::string_view close;
     };
 
+    constexpr bool is_space(char c)
+    {
+        switch (c)
+        {
+        case ' ':
+        case '\f':
+        case '\n':
+        case '\r':
+        case '\t':
+        case '\v':
+            return true;
+        }
+        return false;
+    }
+
 #ifndef BUSTACHE_NO_SWAR
     // Use tricks described here:
     // http://0x80.pl/notesen/2023-03-06-swar-find-any.html
-    // The improvement is yet to be explored.
+    // The performance is yet to be explored.
 
     template<class T>
     consteval T constv(T value)
@@ -36,12 +51,6 @@ namespace bustache::parser { namespace
         return UINT64_C(0x101010101010101) * byte;
     }
 
-    constexpr std::uint64_t has_zero_byte(std::uint64_t v)
-    {
-        return (v - UINT64_C(0x101010101010101)) & ~v &
-            UINT64_C(0x8080808080808080);
-    }
-
     template<std::uint8_t... c>
     std::uint64_t clear_ascii(std::uint64_t word)
     {
@@ -50,16 +59,6 @@ namespace bustache::parser { namespace
         const auto ascii = word & mask;
         const auto match = (... & ((ascii ^ constv(broadcast(c))) + mask)) | word;
         return match & msb_mask;
-    }
-
-    template<unsigned N>
-    constexpr std::uint64_t chars_mask(const std::uint8_t(&c)[N])
-    {
-        static_assert(N <= 8);
-        std::uint64_t mask = 0;
-        for (unsigned i = 0; i != N; ++i)
-            mask |= std::uint64_t(c[i]) << (8u * i);
-        return mask;
     }
 
     template<std::endian = std::endian::native>
@@ -83,12 +82,30 @@ namespace bustache::parser { namespace
         return zero_prefix(mask);
     }
 
+#if 0 // This version of 'is_space' is slower.
+    constexpr std::uint64_t has_zero_byte(std::uint64_t v)
+    {
+        return (v - UINT64_C(0x101010101010101)) & ~v &
+            UINT64_C(0x8080808080808080);
+    }
+
+    template<unsigned N>
+    constexpr std::uint64_t chars_mask(const std::uint8_t(&c)[N])
+    {
+        static_assert(N <= 8);
+        std::uint64_t mask = 0;
+        for (unsigned i = 0; i != N; ++i)
+            mask |= std::uint64_t(c[i]) << (8u * i);
+        return mask;
+    }
+
     constexpr bool is_space(char c)
     {
         const auto mask = broadcast(c);
         constexpr auto chars = chars_mask({' ', '\f', '\n', '\r', '\t', '\v'});
         return has_zero_byte(mask ^ chars);
     }
+#endif
 
     // Return true if it ends.
     bool skip(I& i, I e) noexcept
@@ -108,20 +125,6 @@ namespace bustache::parser { namespace
         return i == e;
     }
 #else
-    constexpr bool is_space(char c)
-    {
-        switch (c)
-        {
-        case ' ':
-        case '\f':
-        case '\n':
-        case '\r':
-        case '\t':
-        case '\v':
-            return true;
-        }
-        return false;
-    }
 
     // Return true if it ends.
     inline bool skip(I& i, I e) noexcept
