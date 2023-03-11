@@ -97,7 +97,7 @@ TEST_CASE("interpolation")
             object{
                 {"a", object{{"b", object{{"c", object{{"d", object{{"e", object{{"name", "Phil"}}}}}}}}}}},
                 {"c", object{{"c", object{{"d", object{{"e", object{{"name", "Wrong"}}}}}}}}}
-        })) == R"("Phil" == "Phil")");
+            })) == R"("Phil" == "Phil")");
 
         // Dotted Names - Context Precedence
         CHECK(to_string("{{#a}}{{b.c}}{{/a}}"_fmt(object{{"b", empty}, {"c", "ERROR"}})) == "");
@@ -181,7 +181,7 @@ TEST_CASE("sections")
             {"c", object{{"three", 3}}},
             {"d", object{{"four", 4}}},
             {"e", object{{"five", 5}}}}))
-        == 
+            ==
         "1\n"
         "121\n"
         "12321\n"
@@ -208,7 +208,7 @@ TEST_CASE("sections")
         "{{#bool}}\n"
         "* third\n"
         "{{/bool}}"_fmt(object{{"bool", true}, {"two", "second"}}))
-        == 
+        ==
         "* first\n"
         "* second\n"
         "* third\n");
@@ -427,7 +427,7 @@ TEST_CASE("delimiters")
         "  |data|\n"
         "|/section|\n"
         "]"_fmt(object{{"section", true}, {"data", "I got interpolated."}}))
-        == 
+        ==
         "[\n"
         "  I got interpolated.\n"
         "  |data|\n"
@@ -488,7 +488,7 @@ TEST_CASE("delimiters")
             "Begin.\n"
             "{{=@ @=}}\n"
             "End."_fmt(empty))
-            == 
+            ==
             "Begin.\n"
             "End.");
 
@@ -531,7 +531,7 @@ TEST_CASE("comments")
         "  This is a\n"
         "  multi-line comment...\n"
         "}}67890"_fmt(empty))
-        == 
+        ==
         "1234567890");
 
     // Standalone
@@ -607,7 +607,7 @@ TEST_CASE("partials")
     CHECK(to_string("{{>node}}"_fmt(object{
         {"content", "X"},
         {"nodes", array{object{{"content", "Y"}, {"nodes", array{}}}}}
-    }).context(context{{"node", "{{content}}<{{#nodes}}{{>node}}{{/nodes}}>"_fmt}})) == "X<Y<>>");
+        }).context(context{{"node", "{{content}}<{{#nodes}}{{>node}}{{/nodes}}>"_fmt}})) == "X<Y<>>");
 
     // Whitespace Sensitivity
     {
@@ -635,7 +635,7 @@ TEST_CASE("partials")
                 "|\n"
                 "{{{content}}}\n"
                 "|\n"_fmt}}))
-            == 
+            ==
             "\\\n"
             " |\n"
             " <\n"
@@ -661,7 +661,7 @@ TEST_CASE("lambdas")
         "Hello, {{lambda}}!"_fmt(object{
             {"lambda", lazy_format([](...) { return "{{planet}}"_fmt; })},
             {"planet", "world"}}))
-        ==
+            ==
         "Hello, world!");
 
     // Interpolation - Alternate Delimiters
@@ -669,14 +669,14 @@ TEST_CASE("lambdas")
         "{{= | | =}}\nHello, (|&lambda|)!"_fmt(object{
             {"lambda", lazy_format([](...) { return "|planet| => {{planet}}"_fmt; })},
             {"planet", "world"}}))
-        ==
+            ==
         "Hello, (|planet| => world)!");
 
     // Interpolation - Multiple Calls
     CHECK(to_string(
         "{{lambda}} == {{{lambda}}} == {{lambda}}"_fmt(object{
             {"lambda", lazy_value([n = 0](...) mutable { return ++n; })}}))
-        ==
+            ==
         "1 == 2 == 3");
 
     // Escaping
@@ -684,7 +684,7 @@ TEST_CASE("lambdas")
 
     // Section - Expansion
     CHECK(to_string("<{{#lambda}}-{{/lambda}}>"_fmt(object{
-        {"lambda", [](ast::view const* view) {
+        {"lambda", lazy_format([](ast::view const* view) {
             ast::document doc;
             if (view)
             {
@@ -694,14 +694,14 @@ TEST_CASE("lambdas")
                 doc.contents.insert(doc.contents.end(), view->contents.begin(), view->contents.end());
             }
             return format(std::move(doc), false);
-        }},
+        })},
         {"planet", "Earth"}}))
         ==
-        "<-Earth->");
+            "<-Earth->");
 
     // Section - Multiple Calls
     CHECK(to_string("{{#lambda}}FILE{{/lambda}} != {{#lambda}}LINE{{/lambda}}"_fmt(object{
-        {"lambda", [](ast::view const* view) {
+        {"lambda", lazy_format([](ast::view const* view) {
             ast::document doc;
             if (view)
             {
@@ -712,9 +712,9 @@ TEST_CASE("lambdas")
                 doc.contents.push_back(txt);
             }
             return format(std::move(doc), false);
-        }}}))
+        })}}))
         ==
-        "__FILE__ != __LINE__");
+            "__FILE__ != __LINE__");
 
     // Inverted Section
     CHECK(to_string("<{{^lambda}}{{static}}{{/lambda}}>"_fmt(object{
