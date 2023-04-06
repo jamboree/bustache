@@ -13,6 +13,7 @@
 #include <cstring>
 #include <concepts>
 #include <functional>
+#include <variant>
 #ifdef BUSTACHE_USE_FMT
 #include <fmt/format.h>
 #elif defined(__cpp_lib_format)
@@ -25,12 +26,6 @@
 #else
 #include <iterator>
 #endif
-
-namespace std
-{
-    template<class... T>
-    class variant;
-};
 
 namespace bustache::detail
 {
