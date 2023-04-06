@@ -35,7 +35,7 @@ namespace bustache::parser { namespace
         return false;
     }
 
-#ifndef BUSTACHE_NO_SWAR
+#ifdef BUSTACHE_USE_SWAR // Performance tuning, disabled by default.
     // Use tricks described here:
     // http://0x80.pl/notesen/2023-03-06-swar-find-any.html
     // The performance is yet to be explored.

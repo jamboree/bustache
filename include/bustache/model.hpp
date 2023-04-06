@@ -1,5 +1,5 @@
 /*//////////////////////////////////////////////////////////////////////////////
-    Copyright (c) 2014-2021 Jamboree
+    Copyright (c) 2014-2023 Jamboree
 
     Distributed under the Boost Software License, Version 1.0. (See accompanying
     file LICENSE_1_0.txt or copy at http://www.boost.org/LICENSE_1_0.txt)
@@ -11,7 +11,6 @@
 #include <version> 
 #include <vector>
 #include <cstring>
-#include <ranges>
 #include <concepts>
 #include <functional>
 #ifdef BUSTACHE_USE_FMT
@@ -20,6 +19,11 @@
 #include <format>
 #else
 #error "format is not supported"
+#endif
+#ifdef __cpp_lib_ranges
+#include <ranges>
+#else
+#include <iterator>
 #endif
 
 namespace std
@@ -35,6 +39,54 @@ namespace bustache::detail
 #else
     namespace fmt = ::std;
 #endif
+
+#ifdef __cpp_lib_ranges
+    namespace ranges = ::std::ranges;
+#else
+    // Imperfect substitute for some range utilities.
+    namespace ranges
+    {
+        namespace _cpo
+        {
+            using ::std::begin;
+            using ::std::end;
+
+            struct begin_t
+            {
+                template<class T>
+                auto operator()(T&& t) const -> decltype(begin(std::forward<T>(t)))
+                {
+                    return begin(std::forward<T>(t));
+                }
+            };
+
+            struct end_t
+            {
+                template<class T>
+                auto operator()(T&& t) const -> decltype(end(std::forward<T>(t)))
+                {
+                    return end(std::forward<T>(t));
+                }
+            };
+        }
+        constexpr _cpo::begin_t begin;
+        constexpr _cpo::end_t end;
+
+        template<class T>
+        concept Range = requires(T& t)
+        {
+            begin(t);
+            end(t);
+        };
+
+        template<class T>
+        using iterator_t = decltype(begin(std::declval<T&>()));
+
+        template<Range R>
+        using range_value_t = std::iter_value_t<iterator_t<R>>;
+    }
+#endif
+
     struct vtable_base;
 
     template<class T>
@@ -150,10 +202,10 @@ namespace bustache
     template<class T>
     concept String =
         std::convertible_to<T, std::string_view> &&
-        std::same_as<std::ranges::range_value_t<T>, char>;
+        std::same_as<detail::ranges::range_value_t<T>, char>;
 
     template<class T>
-    concept ValueRange = Value<std::ranges::range_value_t<T>>;
+    concept ValueRange = Value<detail::ranges::range_value_t<T>>;
 
     template<class T>
     concept StrValueMap = requires(T const& t, std::string const& key)
