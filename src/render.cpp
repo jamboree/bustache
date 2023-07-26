@@ -426,7 +426,7 @@ namespace bustache::detail
             {
                 if (auto const obj = object_ptr::from_nested(val))
                 {
-                    nested_resolver nested{sub, key_cache, handle};
+                    nested_resolver nested{sub, key_cache, handle, false};
                     if (nested.next(obj), nested.done)
                         return;
                 }
