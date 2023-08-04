@@ -344,6 +344,8 @@ namespace bustache::detail
     void print_fmt(T const& self, output_handler os, char const* spec)
     {
         using OutIter = std::back_insert_iterator<output_buffer>;
+        output_buffer buf(os);
+#if defined(_MSC_VER) || defined(BUSTACHE_USE_FMT)
         using FmtCtx = fmt::basic_format_context<OutIter, char>;
         fmt::formatter<T> fmt;
         if (spec)
@@ -351,9 +353,22 @@ namespace bustache::detail
             fmt::format_parse_context ctx{spec};
             fmt.parse(ctx);
         }
-        output_buffer buf(os);
         FmtCtx ctx{OutIter(buf), fmt::make_format_args<FmtCtx>()};
         fmt.format(self, ctx);
+#else
+        if (spec)
+        {
+            const auto len = std::strlen(spec);
+            std::string tmp;
+            tmp.reserve(len + 3);
+            tmp.append("{:", 2);
+            tmp.append(spec, len);
+            tmp.push_back('}');
+            std::vformat_to(OutIter(buf), tmp, fmt::make_format_args(self));
+        }
+        else
+            std::format_to(OutIter(buf), "{}", self);
+#endif
         buf.flush();
     }
 
