@@ -180,10 +180,7 @@ namespace bustache
     };
 
     template<class T>
-    concept Value = requires(T const& val)
-    {
-        value_ptr(&val);
-    };
+    concept Value = std::constructible_from<value_ptr, T const*>;
 
     template<class F>
     concept Lazy_value = requires(F const& f, ast::view const* view)
