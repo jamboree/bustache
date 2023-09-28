@@ -149,7 +149,7 @@ namespace bustache
     {
         inline format operator"" _fmt(char const* str, std::size_t n)
         {
-            return format(str, str + n);
+            return format(std::string_view(str, n));
         }
     }
 }
