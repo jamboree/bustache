@@ -94,7 +94,7 @@ namespace bustache::detail
     template<class Sink>
     struct escape_sink
     {
-        Sink const& sink;
+        Sink& sink;
 
         void operator()(const void* data, std::size_t bytes) const
         {
@@ -135,7 +135,7 @@ namespace bustache
 
     constexpr no_escape_t no_escape{};
 
-    constexpr auto escape_html = []<class Sink>(Sink const& sink)
+    constexpr auto escape_html = []<class Sink>(Sink& sink)
     {
         return detail::escape_sink<Sink>{sink};
     };
@@ -163,7 +163,7 @@ namespace bustache
     template<class Sink, class Escape = no_escape_t>
     inline void render
     (
-        Sink const& os, format const& fmt, value_ref data,
+        Sink&& os, format const& fmt, value_ref data,
         context_handler context = no_context_t{}, Escape escape = {},
         unresolved_handler f = nullptr
     )
