@@ -85,12 +85,6 @@ namespace bustache::detail
     struct vtable_base;
 
     template<class T>
-    inline T& deref_data(void* p)
-    {
-        return *static_cast<T*>(p);
-    }
-
-    template<class T>
     inline T const& deref_data(void const* p)
     {
         return *static_cast<T const*>(p);
@@ -105,10 +99,7 @@ namespace bustache::detail
         fn_base() noexcept : _data(), _call() {}
 
         template<class F>
-        fn_base(F& f) noexcept : _data(&f), _call(call<F>) {}
-
-        template<class F>
-        fn_base(F const& f) noexcept : _data(const_cast<F*>(&f)), _call(call<F const>) {}
+        fn_base(F const& f) noexcept : _data(&f), _call(call<F>) {}
 
         template<class F>
         fn_base(F* f) noexcept : _data(f), _call(call_fp<F>) {}
@@ -119,19 +110,19 @@ namespace bustache::detail
         }
 
         template<class F>
-        static R call(void* f, T&&... t)
+        static R call(void const* f, T&&... t)
         {
             return deref_data<F>(f)(std::forward<T>(t)...);
         }
 
         template<class F>
-        static R call_fp(void* f, T&&... t)
+        static R call_fp(void const* f, T&&... t)
         {
             return static_cast<F*>(f)(std::forward<T>(t)...);
         }
 
-        void* _data;
-        R(*_call)(void*, T&&...);
+        void const* _data;
+        R(*_call)(void const*, T&&...);
     };
 
     struct content_visitor;
@@ -221,7 +212,7 @@ namespace bustache
     };
 
     template<class F, class R, class... T>
-    concept Callable = requires(F& f, T... t)
+    concept Callable = requires(F const& f, T... t)
     {
         {f(t...)} -> std::convertible_to<R>;
     };
@@ -235,9 +226,6 @@ namespace bustache
         using base_t = detail::fn_base<R(T...)>;
 
     public:
-        template<Callable<R, T...> F>
-        fn_ref(F& f) noexcept : base_t(f) {}
-
         template<Callable<R, T...> F>
         fn_ref(F const& f) noexcept : base_t(f) {}
 
@@ -255,9 +243,6 @@ namespace bustache
     public:
         fn_ptr() = default;
         fn_ptr(std::nullptr_t) noexcept {}
-
-        template<Callable<R, T...> F>
-        fn_ptr(F& f) noexcept : base_t(f) {}
 
         template<Callable<R, T...> F>
         fn_ptr(F const& f) noexcept : base_t(f) {}
