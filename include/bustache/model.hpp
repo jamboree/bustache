@@ -342,7 +342,7 @@ namespace bustache::detail
     {
         using OutIter = std::back_insert_iterator<output_buffer>;
         output_buffer buf(os);
-#if defined(_MSC_VER) || defined(BUSTACHE_USE_FMT)
+#if defined(BUSTACHE_USE_FMT)
         using FmtCtx = fmt::basic_format_context<OutIter, char>;
         fmt::formatter<T> fmt;
         if (spec)
